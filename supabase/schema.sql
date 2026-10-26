@@ -1155,20 +1155,25 @@ language plpgsql security definer set search_path = public as $$
 declare
   meta jsonb := coalesce(new.raw_user_meta_data, '{}'::jsonb);
   nid text := nullif(btrim(coalesce(meta ->> 'national_id', '')), '');
-  title text := nullif(btrim(coalesce(meta ->> 'job_title', '')), '');
-  title_kind text;
+  title text;
   mgr uuid;
   mgr_team uuid;
   code text;
 begin
   if nid is not null and not public.valid_national_id(nid) then raise exception 'invalid_national_id'; end if;
 
-  if title is not null then
-    select jt.kind into title_kind from public.job_titles jt where jt.name = title;
-    if not found then title := null; end if;
-    if title_kind is distinct from 'employee' then raise exception 'signup_role_forbidden'; end if;
+  -- Anyone who registers with a national id is a regular employee: the database gives them the default employee
+  -- job title and the next employee number, whatever the browser sent. Accounts an admin creates for supervisors /
+  -- assistant managers / managers carry no national id and get their title afterwards.
+  if nid is not null then
+    select jt.name into title
+    from public.job_titles jt
+    where jt.kind = 'employee'
+    order by (jt.name = 'موظف') desc, jt.name
+    limit 1;
+    title := coalesce(title, 'موظف');
+    code := public.next_employee_code();
   end if;
-  if title_kind = 'employee' then code := public.next_employee_code(); end if;
 
   begin
     mgr := nullif(meta ->> 'manager_id', '')::uuid;

@@ -120,13 +120,14 @@ export const api = {
     if (answers.role && answers.role !== 'employee') throw codedError('forbidden');
     if (db.profile_private.some((r) => r.national_id === nid)) throw codedError('signup_failed');
     if (email && db.profiles.some((p) => (p.email || '').toLowerCase() === email.toLowerCase())) throw codedError('already_registered');
-    const job = db.job_titles.find((t) => t.name === answers.job_title);
-    if (job && job.kind !== 'employee') throw codedError('forbidden');
+    // Like the trigger: whoever registers with a national id is an employee with the default employee title,
+    // whatever job title the browser sent.
+    const job = db.job_titles.find((t) => t.name === 'موظف' && t.kind === 'employee') || db.job_titles.find((t) => t.kind === 'employee');
     const manager = db.profiles.find((p) => p.id === answers.manager_id && p.role === 'supervisor' && p.active);
     const person = {
       id: crypto.randomUUID(), full_name: (answers.full_name || '').trim(), email: email && email !== pseudoEmail(nid) ? email : null,
       phone: '', role: 'employee', team_id: manager ? manager.team_id : null, manager_id: manager ? manager.id : null,
-      job_title: job ? job.name : null, employee_code: (job && job.kind === 'employee') ? nextEmployeeCode() : null,
+      job_title: job ? job.name : 'موظف', employee_code: nextEmployeeCode(),
       shift_id: null, location_id: null, hire_date: null, active: false, created_at: new Date().toISOString(),
     };
     db.profiles.push(person);

@@ -11,15 +11,18 @@ export async function renderSignup({ api, onDone, onBack, admin = false }) {
   } catch (err) {
     return h('div', {}, h('h2', {}, t('employees.createEmployeeTitle')), h('p', { class: 'muted' }, errorText(err)), btn(t('common.cancel'), onBack, 'ghost'));
   }
-  const jobTitles = options.jobTitles.filter((title) => title.kind === 'employee');
+  const isAr = getLang() === 'ar';
+  // Everyone who registers here is a regular employee, so there is no job-title question. The title is only sent
+  // so an admin-created account shows it in the list; the database decides it for self sign-ups.
+  const employeeTitles = options.jobTitles.filter((title) => title.kind === 'employee');
+  const defaultTitle = (employeeTitles.find((title) => title.name === 'موظف') || employeeTitles[0])?.name || 'موظف';
   const { supervisors } = options;
 
-  const job = select([{ value: '', label: getLang() === 'ar' ? '— اختر المسمى الوظيفي —' : '— Select Job Title —' }, ...jobTitles.map((jt) => ({ value: jt.name, label: jt.name }))], '');
-  const fullName = h('input', { type: 'text', autocomplete: 'name', placeholder: getLang() === 'ar' ? 'الاسم رباعي كما بالبطاقة' : 'Full Name' });
+  const fullName = h('input', { type: 'text', autocomplete: 'name', placeholder: isAr ? 'الاسم ثلاثي كما بالبطاقة' : 'Full name as on the ID (three names)' });
   const nationalId = h('input', { type: 'text', inputMode: 'numeric', maxLength: 14, autocomplete: 'off', dir: 'ltr', placeholder: '14 digits' });
   const manager = select([
-    { value: '', label: t('common.none') },
-    ...supervisors.map((s) => ({ value: s.id, label: s.job_title ? `${s.full_name} (${s.job_title})` : s.full_name })),
+    { value: '', label: isAr ? '— اختر المشرف المباشر —' : '— Select direct supervisor —' },
+    ...supervisors.map((s) => ({ value: s.id, label: s.full_name })),
   ], '');
   const password = h('input', { type: 'password', autocomplete: 'new-password' });
   const confirm = h('input', { type: 'password', autocomplete: 'new-password' });
@@ -30,12 +33,16 @@ export async function renderSignup({ api, onDone, onBack, admin = false }) {
     const pw = password.value;
     const cf = confirm.value;
 
-    if (!name || name.split(/\s+/).length < 2) {
-      toast(getLang() === 'ar' ? 'يرجى إدخال الاسم كاملًا، على أن يتكون من اسمين على الأقل.' : 'Enter the full name (at least two names).', 'err');
+    if (!name || name.split(/\s+/).length < 3) {
+      toast(isAr ? 'يرجى إدخال الاسم ثلاثيًا كما في البطاقة (3 أسماء على الأقل).' : 'Enter the full name as on the ID (at least three names).', 'err');
       return;
     }
     if (!validNationalId(nid)) {
-      toast(getLang() === 'ar' ? 'يجب أن يتكون الرقم القومي من 14 رقمًا صحيحًا.' : 'The national ID must contain 14 valid digits.', 'err');
+      toast(isAr ? 'يجب أن يتكون الرقم القومي من 14 رقمًا صحيحًا.' : 'The national ID must contain 14 valid digits.', 'err');
+      return;
+    }
+    if (!manager.value) {
+      toast(isAr ? 'اختر المشرف المباشر.' : 'Select the direct supervisor.', 'err');
       return;
     }
     if (pw.length < 6) {
@@ -53,8 +60,8 @@ export async function renderSignup({ api, onDone, onBack, admin = false }) {
       profile: {
         full_name: name,
         national_id: nid,
-        job_title: job.value || 'Employee',
-        manager_id: manager.value || null,
+        job_title: defaultTitle,
+        manager_id: manager.value,
       },
     };
 
@@ -77,9 +84,9 @@ export async function renderSignup({ api, onDone, onBack, admin = false }) {
     h('h2', {}, t('employees.createEmployeeTitle')),
     h('p', { class: 'muted' }, t('employees.createEmployeeSubtitle')),
     field(t('common.name'), fullName),
-    field(getLang() === 'ar' ? 'الرقم القومي (اسم المستخدم)' : 'National ID (username)', nationalId, getLang() === 'ar' ? '14 رقمًا — يستخدمه الموظف لتسجيل الدخول.' : '14 digits, used as the sign-in username.'),
-    field(t('common.jobTitle'), job),
-    field(getLang() === 'ar' ? 'المشرف المباشر' : 'Direct supervisor', manager),
+    field(isAr ? 'الرقم القومي' : 'National ID', nationalId, isAr ? '14 رقمًا — يستخدمه الموظف لتسجيل الدخول.' : '14 digits, used to sign in.'),
+    field(isAr ? 'المشرف المباشر' : 'Direct supervisor', manager,
+      supervisors.length ? '' : (isAr ? 'لا يوجد مشرفون مسجلون حاليًا. تواصل مع الإدارة.' : 'No supervisors are registered yet. Contact the administration.')),
     field(t('common.password'), password),
     field(t('common.confirmPassword'), confirm),
     submit,
