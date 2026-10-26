@@ -1,6 +1,6 @@
 import { test, eq } from './harness.js';
 import {
-  cleanNationalId, formatEmployeeCode, isPseudoEmail, loginEmail, maskNationalId, pseudoEmail, toAsciiDigits,
+  cleanNationalId, defaultLocationId, formatEmployeeCode, isPseudoEmail, loginEmail, maskNationalId, pseudoEmail, toAsciiDigits,
   validNationalId, validateRegistration,
 } from '../js/lib/registration.js';
 
@@ -11,6 +11,16 @@ const good = {
   managerId: 'm1', supervisorCount: 2, password: 'secret1', confirm: 'secret1',
 };
 const problem = (changes) => validateRegistration({ ...good, ...changes });
+
+test('defaultLocationId: the branch chosen in Settings, only while it still exists', () => {
+  const branches = [{ id: 'a' }, { id: 'b' }];
+  eq(defaultLocationId({ default_location_id: 'b' }, branches), 'b');
+  eq(defaultLocationId({ default_location_id: 'gone' }, branches), null);   // the branch was deleted
+  eq(defaultLocationId({ default_location_id: null }, branches), null);      // nothing chosen, even with branches
+  eq(defaultLocationId({}, branches), null);
+  eq(defaultLocationId(undefined, branches), null);
+  eq(defaultLocationId({ default_location_id: 'a' }, undefined), null);
+});
 
 test('national id: 14 digits, century digit 2 or 3, a real birth date', () => {
   eq(validNationalId('29912121234565'), true);     // 1999-12-12

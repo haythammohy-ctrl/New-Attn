@@ -2,14 +2,14 @@
 // rules as the Supabase version (lib/access.js mirrors the SQL), minus real security.
 import { accessOf, canAccess, canRead, checkWrite, FEATURES } from '../lib/access.js';
 import { todayIn } from '../lib/dates.js';
-import { cleanNationalId, formatEmployeeCode, pseudoEmail, validNationalId } from '../lib/registration.js';
+import { cleanNationalId, defaultLocationId, formatEmployeeCode, pseudoEmail, validNationalId } from '../lib/registration.js';
 import { checkGeofence, RuleError } from '../lib/rules.js';
 import { checkoutMinutesAt, lateMinutesAt, openInstance, shiftInstance } from '../lib/shifts.js';
 import { codedError } from './errors.js';
 import { buildSeed } from './seed.js';
 import { PK, UNIQUE, TABLES_ORDER } from './tables.js';
 
-const DB_KEY = 'attn.demo.db.v7';   // bumped when the data shape changed, so old demo data is not reused
+const DB_KEY = 'attn.demo.db.v8';   // bumped when the data shape changed, so old demo data is not reused
 const USER_KEY = 'attn.demo.user';
 const CLOCK_KEY = 'attn.demo.now';   // optional ISO time to pretend "now" is, for trying late/overtime
 
@@ -128,7 +128,7 @@ export const api = {
       id: crypto.randomUUID(), full_name: (answers.full_name || '').trim(), email: email && email !== pseudoEmail(nid) ? email : null,
       phone: '', role: 'employee', team_id: manager ? manager.team_id : null, manager_id: manager ? manager.id : null,
       job_title: job ? job.name : 'موظف', employee_code: nextEmployeeCode(),
-      shift_id: null, location_id: null, hire_date: null, active: false, created_at: new Date().toISOString(),
+      shift_id: null, location_id: defaultLocationId(db.settings[0], db.work_locations), hire_date: null, active: false, created_at: new Date().toISOString(),
     };
     db.profiles.push(person);
     db.profile_private.push({ id: person.id, national_id: nid });
@@ -156,7 +156,8 @@ export const api = {
       phone: '', role: answers.role || 'employee', team_id: manager ? manager.team_id : null, manager_id: manager ? manager.id : null,
       job_title: answers.job_title || (job ? job.name : (answers.role === 'assistant_manager' ? 'Assistant Manager' : answers.role === 'supervisor' ? 'Supervisor' : null)),
       employee_code: (!isStaff && job && job.kind === 'employee') ? nextEmployeeCode() : null,
-      shift_id: null, location_id: null, hire_date: null, active: Boolean(isStaff), created_at: new Date().toISOString(),
+      shift_id: null, location_id: isStaff ? null : defaultLocationId(db.settings[0], db.work_locations),
+      hire_date: null, active: Boolean(isStaff), created_at: new Date().toISOString(),
       must_change_password: true,   // mirrors the real backend: an admin-issued password must be changed
     };
     db.profiles.push(person);

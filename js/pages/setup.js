@@ -225,7 +225,7 @@ export default async function render({ api, settings, perms }) {
     active = key;
     tabs.replaceChildren(...entries.map((e) => h('button', { type: 'button', class: e.key === active ? 'active' : '', onClick: () => show(e.key) }, e.label)));
     body.replaceChildren(h('div', { class: 'spinner' }));
-    if (key === 'settings') body.replaceChildren(settingsCard());
+    if (key === 'settings') body.replaceChildren(await settingsCard());
     else if (key === 'backup') body.replaceChildren(backupCard());
     else body.replaceChildren(await crudCard(sections.find((s) => s.key === key)));
   }
@@ -304,8 +304,16 @@ export default async function render({ api, settings, perms }) {
       ));
   }
 
-  function settingsCard() {
-    const form = buildForm(settingsFields, settings);
+  async function settingsCard() {
+    const locations = await api.list('work_locations', { order: 'name' });
+    const defaultBranch = {
+      key: 'default_location_id', type: 'select', nullable: true,
+      label: text('الفرع الأساسي للموظفين الجدد', 'Default branch for new employees'),
+      hint: text('يُسجَّل كل موظف جديد على هذا الفرع تلقائيًا. ويمكن تغيير فرع أي موظف من شاشة تعديله.', 'Every new employee is placed on this branch automatically. You can change any employee\'s branch from their edit screen.'),
+      options: [{ value: '', label: text('— بدون —', '— None —') }, ...locations.map((l) => ({ value: l.id, label: l.name }))],
+    };
+    // Before the 20261102000000_default_branch.sql upgrade the column is missing, and saving it would fail.
+    const form = buildForm('default_location_id' in settings ? [...settingsFields, defaultBranch] : settingsFields, settings);
     if (!canEditRules) form.nodes.forEach((n) => n.querySelectorAll('input, select, textarea').forEach((el) => { el.disabled = true; }));
     return h('div', { class: 'card' },
       !canEditRules && h('p', { class: 'muted' }, text('للعرض فقط. يقتصر التعديل على مدير النظام أو من مُنح هذه الصلاحية.', 'View only. Editing is limited to the system administrator or users granted this permission.')),

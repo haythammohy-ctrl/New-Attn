@@ -55,7 +55,7 @@ async function pendingScreen(profile) {
   return messageCard(
     getLang() === 'ar' ? 'طلبك قيد المراجعة' : 'Account Pending Review',
     getLang() === 'ar'
-      ? `أهلًا بك، ${profile.full_name}. سُجّل حسابك بنجاح، وينتظر تفعيله وتحديد فريقك وفرع عملك من قِبل الإدارة.`
+      ? `أهلًا بك، ${profile.full_name}. سُجّل حسابك بنجاح، وينتظر تفعيله من قِبل الإدارة.`
       : `Welcome ${profile.full_name}. Your account is registered and awaiting manager activation.`,
     h('div', { style: { width: '100%', margin: '12px 0' } },
       h('p', {}, h('b', {}, getLang() === 'ar' ? 'المشرف المباشر: ' : 'Direct supervisor: '), managerName)),

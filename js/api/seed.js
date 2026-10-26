@@ -29,6 +29,7 @@ export function buildSeed() {
   const lastMonth = shiftMonth(today.slice(0, 7), -1);
 
   const location = { id: id(), name: 'Main Branch', lat: 30.0444, lng: 31.2357, radius_m: 150 };
+  settings.default_location_id = location.id;   // new employees start on this branch
   const mkShift = (name, start_time, end_time) => ({
     id: id(), name, start_time, end_time, grace_minutes: 10, working_days: [0, 1, 2, 3, 4],
   });

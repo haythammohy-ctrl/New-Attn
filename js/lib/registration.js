@@ -59,6 +59,13 @@ export function formatEmployeeCode(prefix, n) {
   return `${prefix || 'DC'}${digits.padStart(Math.max(6, digits.length), '0')}`;
 }
 
+// The branch a new employee starts on: the one chosen in Settings, if that branch still exists (the database
+// does the same in handle_new_user). Null when none is chosen.
+export function defaultLocationId(settings, locations) {
+  const chosen = settings?.default_location_id;
+  return chosen && (locations || []).some((l) => l.id === chosen) ? chosen : null;
+}
+
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const validEmail = (value) => EMAIL.test(String(value || '').trim());
 

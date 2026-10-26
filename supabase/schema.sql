@@ -32,6 +32,10 @@ create table public.work_locations (
   radius_m int not null default 100 check (radius_m > 0)
 );
 
+-- The branch every new employee starts on (chosen in Settings; handle_new_user reads it).
+alter table public.settings
+  add column default_location_id uuid references public.work_locations (id) on delete set null;
+
 -- working_days uses 0 = Sunday ... 6 = Saturday. A shift may cross midnight:
 -- end_time <= start_time means it ends the next day (e.g. 23:00 -> 07:00).
 create table public.shifts (
@@ -1159,6 +1163,7 @@ declare
   mgr uuid;
   mgr_team uuid;
   code text;
+  loc uuid;
 begin
   if nid is not null and not public.valid_national_id(nid) then raise exception 'invalid_national_id'; end if;
 
@@ -1173,6 +1178,7 @@ begin
     limit 1;
     title := coalesce(title, 'موظف');
     code := public.next_employee_code();
+    select s.default_location_id into loc from public.settings s where s.id = 1;
   end if;
 
   begin
@@ -1185,13 +1191,13 @@ begin
     if not found then mgr := null; end if;
   end if;
 
-  insert into public.profiles (id, full_name, email, role, active, job_title, manager_id, team_id, employee_code)
+  insert into public.profiles (id, full_name, email, role, active, job_title, manager_id, team_id, employee_code, location_id)
   values (
     new.id,
     coalesce(meta ->> 'full_name', ''),
     case when new.email like '%@staff.invalid' then null else new.email end,
     'employee',
-    false, title, mgr, mgr_team, code
+    false, title, mgr, mgr_team, code, loc
   );
 
   if nid is not null then
