@@ -1152,6 +1152,45 @@ revoke execute on function public.list_supervisors() from public;
 grant execute on function public.assign_employee_code(uuid) to authenticated;
 grant execute on function public.list_supervisors() to anon, authenticated;
 
+-- The reporting chain, names only: a supervisor reads the assistant manager in charge of their team and that
+-- person's manager; an assistant manager reads their manager. Anyone else gets no rows.
+create or replace function public.my_chain() returns table (relation text, id uuid, full_name text)
+language plpgsql stable security definer set search_path = public as $$
+declare
+  me public.profiles;
+  assistant public.profiles;
+  boss public.profiles;
+  below_manager uuid;
+begin
+  select p.* into me from public.profiles p where p.id = auth.uid() and p.active;
+  if me.id is null then return; end if;
+
+  if me.role = 'supervisor' and me.team_id is not null then
+    select a.* into assistant
+    from public.teams t
+    join public.profiles a on a.id = t.manager_id
+    where t.id = me.team_id and a.role = 'assistant_manager' and a.active;
+    if assistant.id is not null then
+      relation := 'assistant_manager'; id := assistant.id; full_name := assistant.full_name;
+      return next;
+      below_manager := assistant.manager_id;
+    end if;
+  elsif me.role = 'assistant_manager' then
+    below_manager := me.manager_id;
+  end if;
+
+  if below_manager is not null then
+    select b.* into boss from public.profiles b where b.id = below_manager and b.role = 'manager' and b.active;
+    if boss.id is not null then
+      relation := 'manager'; id := boss.id; full_name := boss.full_name;
+      return next;
+    end if;
+  end if;
+end $$;
+
+revoke execute on function public.my_chain() from public, anon;
+grant execute on function public.my_chain() to authenticated;
+
 -- Stores employee sign-up answers. Role and activation state are never taken from user-supplied metadata.
 -- Anything wrong with the national id aborts the whole sign-up (nothing half-created).
 create or replace function public.handle_new_user() returns trigger

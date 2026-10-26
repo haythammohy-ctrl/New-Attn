@@ -1,8 +1,9 @@
 // Teams: a supervisor and an assistant supervisor share one team, and "my team" in the permission
 // matrix means everyone in it.
 import { roleLabel, can } from '../lib/access.js';
+import { chainOf } from '../lib/hierarchy.js';
 import { getLang } from '../lib/i18n.js';
-import { badge, btn, confirmBox, field, h, modal, toast } from '../ui.js';
+import { badge, btn, confirmBox, field, h, modal, select, toast } from '../ui.js';
 
 export default async function render({ api, perms, refresh }) {
   const isAr = getLang() === 'ar';
@@ -14,22 +15,28 @@ export default async function render({ api, perms, refresh }) {
   const unassigned = active.filter((p) => !p.team_id && ['employee', 'manager'].includes(p.role));
   const teamName = (id) => teams.find((t) => t.id === id)?.name;
   const managerName = (id) => people.find((p) => p.id === id)?.full_name;
+  // The reporting chain: the team's assistant manager (teams.manager_id), and the manager above that person.
+  // Same rules as the supervisors' "My Profile" (lib/hierarchy.js): inactive people and wrong roles are skipped.
+  const bossName = (team) => chainOf({ role: 'supervisor', team_id: team.id, active: true }, people, teams)
+    .find((c) => c.relation === 'manager')?.full_name;
+  const asstLabel = roleLabel('assistant_manager');
+  const bossLabel = roleLabel('manager');
 
   function nameDialog(team) {
     const input = h('input', { type: 'text', value: team?.name || '' });
-    // Every team belongs to one manager; without one, only the admin can see its members.
+    // Every team belongs to one assistant manager; without one, only the admin can see its members.
     const owner = select(
-      [{ value: '', label: isAr ? '— بدون مدير —' : '— No manager —' }, ...managers.map((m) => ({ value: m.id, label: m.full_name }))],
+      [{ value: '', label: isAr ? '— بدون مسؤول —' : `— No ${asstLabel} —` }, ...managers.map((m) => ({ value: m.id, label: m.full_name }))],
       team?.manager_id || '',
     );
     modal({
       title: team ? (isAr ? 'تعديل الفريق' : 'Edit Team') : (isAr ? 'فريق جديد' : 'New Team'),
       body: h('div', {},
         field(isAr ? 'اسم الفريق' : 'Team Name', input),
-        field(isAr ? 'المدير المسؤول' : 'Manager in charge', owner),
+        field(isAr ? `المسؤول عن الفريق (${asstLabel})` : `${asstLabel} in charge`, owner),
         h('p', { class: 'muted' }, isAr
-          ? 'يشوف المدير المسؤول كل فرقـه ومشرفيها وموظفيها.'
-          : 'The manager in charge sees every team they own, with its supervisors and employees.')),
+          ? `يشوف المسؤول كل فرقه ومشرفيها وموظفيها، ويشوف مشرفو الفريق اسمه في «حسابي». وتحديد المدير الذي يتبعه يتم من صفحة الموظفين، بتعديل بياناته.`
+          : `The ${asstLabel} in charge sees every team they own, with its supervisors and employees, and the team's supervisors see their name on their profile. To set the ${bossLabel} above them, edit that person on the Employees page.`)),
       buttons: [
         {
           label: isAr ? 'حفظ' : 'Save', kind: 'primary',
@@ -88,8 +95,9 @@ export default async function render({ api, perms, refresh }) {
           refresh();
         }, 'small'))),
     h('p', { class: 'muted' }, team.manager_id
-      ? (isAr ? `المدير المسؤول: ${managerName(team.manager_id) || '—'}` : `Manager in charge: ${managerName(team.manager_id) || '—'}`)
-      : (isAr ? 'لا يوجد مدير مسؤول لهذا الفريق — لن يراه أي مدير حتى تعيّن واحدًا.' : 'No manager in charge — no manager sees this team until one is assigned.')),
+      ? [isAr ? `المسؤول عن الفريق (${asstLabel}): ${managerName(team.manager_id) || '—'}` : `${asstLabel} in charge: ${managerName(team.manager_id) || '—'}`,
+        ` · ${bossLabel}: ${bossName(team) || '—'}`].join('')
+      : (isAr ? `لا يوجد مسؤول (${asstLabel}) لهذا الفريق بعد. عيّن واحدًا من «تعديل الفريق».` : `No ${asstLabel} is in charge of this team yet. Assign one from "Edit Team".`)),
     membersOf(team.id).length
       ? h('div', { class: 'table-wrap' }, h('table', {}, h('tbody', {}, membersOf(team.id).map((p) => h('tr', {},
         h('td', {}, p.full_name),
@@ -104,8 +112,8 @@ export default async function render({ api, perms, refresh }) {
   return h('div', {},
     h('div', { class: 'card' },
       h('p', { class: 'muted' }, isAr
-        ? 'كل فريق يتبعه مدير مسؤول واحد، وتحت كل مدير عدد من الفرق. ويضم كل فريق مشرفًا أو أكثر وموظفين. في إعدادات الصلاحيات يشير نطاق «الفريق» للمدير إلى كل فرقه، وللمشرف إلى موظفي فريقه فقط (دون المشرفين الآخرين معه).'
-        : 'Each team has one manager in charge, and a manager may own several teams. A team can have any number of supervisors and employees. In the permission matrix, the "team" scope means every team a manager owns, and for a supervisor it means the employees of their own team only (not their co-supervisors).'),
+        ? `الهيكل: موظف ← مشرف ← ${asstLabel} ← ${bossLabel}. لكل فريق مسؤول واحد (${asstLabel})، وقد يكون مسؤولًا عن عدة فرق. ويضم كل فريق مشرفًا أو أكثر وموظفين. في إعدادات الصلاحيات يشير نطاق «الفريق» للمسؤول إلى كل فرقه، وللمشرف إلى موظفي فريقه فقط (دون المشرفين الآخرين معه).`
+        : `Structure: employee → supervisor → ${asstLabel} → ${bossLabel}. Each team has one ${asstLabel} in charge, who may own several teams. A team can have any number of supervisors and employees. In the permission matrix, the "team" scope means every team an ${asstLabel} owns, and for a supervisor it means the employees of their own team only (not their co-supervisors).`),
       canEdit && btn(isAr ? 'إنشاء فريق' : 'Create Team', () => nameDialog(null), 'primary')),
     ...teams.map(teamCard),
     unassigned.length > 0 && h('div', { class: 'card' },

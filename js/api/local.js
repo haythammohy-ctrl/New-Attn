@@ -3,13 +3,14 @@
 import { accessOf, canAccess, canRead, checkWrite, FEATURES } from '../lib/access.js';
 import { todayIn } from '../lib/dates.js';
 import { cleanNationalId, defaultLocationId, formatEmployeeCode, pseudoEmail, validNationalId } from '../lib/registration.js';
+import { chainOf } from '../lib/hierarchy.js';
 import { checkGeofence, RuleError } from '../lib/rules.js';
 import { checkoutMinutesAt, lateMinutesAt, openInstance, shiftInstance } from '../lib/shifts.js';
 import { codedError } from './errors.js';
 import { buildSeed } from './seed.js';
 import { PK, UNIQUE, TABLES_ORDER } from './tables.js';
 
-const DB_KEY = 'attn.demo.db.v8';   // bumped when the data shape changed, so old demo data is not reused
+const DB_KEY = 'attn.demo.db.v9';   // bumped when the data shape changed, so old demo data is not reused
 const USER_KEY = 'attn.demo.user';
 const CLOCK_KEY = 'attn.demo.now';   // optional ISO time to pretend "now" is, for trying late/overtime
 
@@ -110,6 +111,11 @@ export const api = {
       supervisors: db.profiles.filter((p) => p.role === 'supervisor' && p.active)
         .map(({ id, full_name, job_title }) => ({ id, full_name, job_title })),
     };
+  },
+
+  // Same answer as my_chain() on the server: the names above the signed-in person.
+  async myChain() {
+    return chainOf(me(), db.profiles, db.teams);
   },
 
   // Does what the handle_new_user trigger does on the server: stores the answers, numbers employees,

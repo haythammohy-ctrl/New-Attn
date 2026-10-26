@@ -52,6 +52,13 @@ export default async function render({ api, profile, settings, perms, refresh })
   const nidOf = (id) => privates.find((r) => r.id === id)?.national_id || '';
   const managerName = (id) => people.find((x) => x.id === id)?.full_name || '—';
   const supervisors = people.filter((p) => p.role === 'supervisor' && p.active);
+  const managersAbove = people.filter((p) => p.role === 'manager' && p.active);
+  // Employees report to a supervisor; an assistant manager reports to a manager (the team's assistant manager then
+  // shows on each supervisor's profile, see lib/hierarchy.js).
+  const reportsTo = (role) => (role === 'assistant_manager'
+    ? { label: isAr ? 'المدير المسؤول' : `${roleLabel('manager')} in charge`, candidates: managersAbove }
+    : { label: isAr ? 'المشرف المباشر' : 'Direct supervisor', candidates: supervisors });
+  const reportsToOptions = (role, selfId) => [none, ...reportsTo(role).candidates.filter((c) => c.id !== selfId).map((c) => ({ value: c.id, label: c.full_name }))];
   const editable = (p) => canEditPeople && (isAdmin || p.role !== 'admin');
 
   function showCredentialsModal({ username, password, role, name }) {
@@ -94,7 +101,7 @@ export default async function render({ api, profile, settings, perms, refresh })
       { key: 'phone', label: isAr ? 'رقم الهاتف' : 'Phone number' },
       { key: 'job_title', label: isAr ? 'المسمى الوظيفي' : 'Job title', type: 'select', nullable: true, options: [none, ...titles.map((title) => ({ value: title, label: title }))] },
       { key: 'role', label: isAr ? 'الدور' : 'Role', type: 'select', options: [...new Set([...roles, p.role])].map((r) => ({ value: r, label: roleLabel(r) })) },
-      { key: 'manager_id', label: isAr ? 'المشرف المباشر' : 'Direct supervisor', type: 'select', nullable: true, options: [none, ...supervisors.filter((s) => s.id !== p.id).map((s) => ({ value: s.id, label: s.full_name }))] },
+      { key: 'manager_id', label: reportsTo(p.role).label, type: 'select', nullable: true, options: reportsToOptions(p.role, p.id) },
       { key: 'team_id', label: t('common.team'), type: 'select', nullable: true, options: [none, ...teams.map((tm) => ({ value: tm.id, label: tm.name }))] },
       { key: 'location_id', label: t('common.branch'), type: 'select', nullable: true, options: [none, ...locations.map((l) => ({ value: l.id, label: l.name }))] },
       { key: 'hire_date', label: isAr ? 'تاريخ التعيين' : 'Hire date', type: 'date', nullable: true },
@@ -108,8 +115,17 @@ export default async function render({ api, profile, settings, perms, refresh })
     const managerSelect = form.nodes[4].querySelector('select');
     const teamSelect = form.nodes[5].querySelector('select');
     managerSelect.addEventListener('change', () => {
+      // An employee joins their supervisor's team. An assistant manager's team is the one the Teams page puts them in
+      // charge of, so picking their manager must not change it.
+      if (roleSelect.value === 'assistant_manager') return;
       const team = people.find((x) => x.id === managerSelect.value)?.team_id;
       if (team) teamSelect.value = team;
+    });
+    // Whom a person reports to follows their role: employee -> supervisor, assistant manager -> manager.
+    roleSelect.addEventListener('change', () => {
+      form.nodes[4].querySelector('.label').textContent = reportsTo(roleSelect.value).label;
+      managerSelect.replaceChildren(...reportsToOptions(roleSelect.value, p.id).map((o) => h('option', { value: o.value }, o.label)));
+      managerSelect.value = '';
     });
 
     const nidInput = h('input', { type: 'text', inputMode: 'numeric', maxLength: 14, dir: 'ltr', value: nidOf(p.id), disabled: !canEditNid });
@@ -253,7 +269,7 @@ export default async function render({ api, profile, settings, perms, refresh })
     { label: isAr ? 'الكود' : 'Code', render: (p) => p.employee_code || '—' },
     { label: t('common.jobTitle'), render: (p) => p.job_title || '—' },
     { label: isAr ? 'الدور' : 'Role', render: (p) => h('span', { class: 'tag-badge' }, roleLabel(p.role)) },
-    { label: isAr ? 'المشرف المباشر' : 'Direct supervisor', render: (p) => (p.manager_id ? managerName(p.manager_id) : '—') },
+    { label: isAr ? 'يتبع' : 'Reports to', render: (p) => (p.manager_id ? managerName(p.manager_id) : '—') },
     { label: t('common.team'), render: (p) => nameIn(teams, p.team_id) },
     { label: t('common.branch'), render: (p) => nameIn(locations, p.location_id) },
     ...(canSeeSalary ? [{ label: isAr ? 'الراتب' : 'Salary', class: 'num', render: (p) => (salaryOf(p.id) ? money(salaryOf(p.id).base_salary) : '—') }] : []),
@@ -280,7 +296,7 @@ export default async function render({ api, profile, settings, perms, refresh })
       dataTable([
         { label: t('common.name'), render: (p) => p.full_name || p.email || '—' },
         { label: t('common.jobTitle'), render: (p) => p.job_title || '—' },
-        { label: isAr ? 'المشرف المباشر' : 'Direct supervisor', render: (p) => (p.manager_id ? managerName(p.manager_id) : '—') },
+        { label: isAr ? 'يتبع' : 'Reports to', render: (p) => (p.manager_id ? managerName(p.manager_id) : '—') },
         { label: isAr ? 'الكود' : 'Code', render: (p) => p.employee_code || '—' },
         ...(canSeeNid ? [{ label: isAr ? 'الرقم القومي' : 'National ID', render: (p) => h('span', { dir: 'ltr' }, maskNationalId(nidOf(p.id))) }] : []),
         { label: '', render: (p) => editable(p) && btn(t('employees.reviewAndActivate'), () => edit(p, true), 'small primary') },

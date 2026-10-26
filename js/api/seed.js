@@ -59,8 +59,10 @@ export function buildSeed() {
     ...extra,
   });
   const admin = person('أحمد (مدير النظام)', 'admin@demo.test', 'admin');
-  const hr = person('منى', 'hr@demo.test', 'assistant_manager', { job_title: 'Assistant Manager' });
-  // منى is the manager in charge of both demo teams, so the team scope is visible in the demo.
+  const boss = person('ماجد', 'boss@demo.test', 'manager', { job_title: 'Manager' });
+  const hr = person('منى', 'hr@demo.test', 'assistant_manager', { job_title: 'Assistant Manager', manager_id: boss.id });
+  // منى is the assistant manager in charge of both demo teams (so the team scope is visible in the demo), and ماجد
+  // is the manager above her.
   teamA.manager_id = hr.id;
   teamB.manager_id = hr.id;
   const khaled = person('خالد', 'manager@demo.test', 'supervisor', { team_id: teamA.id, job_title: 'Supervisor' });
@@ -69,10 +71,10 @@ export function buildSeed() {
   const mahmoud = person('محمود', 'mahmoud@demo.test', 'employee', { team_id: teamA.id, manager_id: khaled.id, job_title: 'Employee', employee_code: 'DC000002' });
   const hisham = person('هشام', 'hisham@demo.test', 'supervisor', { team_id: teamB.id, job_title: 'Supervisor' });
   const yasmin = person('ياسمين', 'yasmin@demo.test', 'employee', { team_id: teamB.id, manager_id: hisham.id, job_title: 'Employee', employee_code: 'DC000003' });
-  const profiles = [admin, hr, khaled, nadine, sara, mahmoud, hisham, yasmin];
+  const profiles = [admin, hr, khaled, nadine, sara, mahmoud, hisham, yasmin, boss];
   // Synthetic but valid national IDs (14 digits with real birth dates).
   const nationalIds = ['28001011234561', '28505051234562', '28203151234563', '29007201234564',
-    '29912121234565', '29506061234566', '28110101234567', '30001151234568'];
+    '29912121234565', '29506061234566', '28110101234567', '30001151234568', '27501011234569'];
   const profilePrivate = profiles.map((p, i) => ({ id: p.id, national_id: nationalIds[i] }));
 
   const salaries = [
@@ -81,6 +83,7 @@ export function buildSeed() {
     [sara, 6000, [{ name: 'Transport allowance', amount: 400 }]],
     [mahmoud, 8000, [{ name: 'Transport allowance', amount: 500 }, { name: 'Meal allowance', amount: 300 }]],
     [hisham, 11500, [{ name: 'Supervisor allowance', amount: 1000 }]], [yasmin, 10000, [{ name: 'Transport allowance', amount: 600 }]],
+    [boss, 20000, []],
   ].map(([p, base_salary, allowances]) => ({ employee_id: p.id, base_salary, allowances }));
 
   // Past attendance only. The three shift workers move to a different shift every week (as if each

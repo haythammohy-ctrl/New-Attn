@@ -100,6 +100,13 @@ export const api = {
     return { jobTitles: titles.data, supervisors: supervisors.data };
   },
 
+  // The names above me: [{ relation: 'assistant_manager' | 'manager', id, full_name }], see my_chain() in the database.
+  async myChain() {
+    const { data, error } = await sb.rpc('my_chain');
+    fail(error);
+    return data || [];
+  },
+
   async assignEmployeeCode(id) {
     const { data, error } = await sb.rpc('assign_employee_code', { p_id: id });
     fail(error);

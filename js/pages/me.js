@@ -9,12 +9,14 @@ const tolerant = (promise, fallback) => promise.catch((err) => (err.code === 'ne
 
 export default async function render({ api, profile }) {
   const isAr = getLang() === 'ar';
-  const [teams, locations, options, privates] = await Promise.all([
+  const [teams, locations, options, privates, chain] = await Promise.all([
     tolerant(api.list('teams'), []),
     api.list('work_locations'),
     tolerant(api.signupOptions(), { supervisors: [] }),
     tolerant(api.list('profile_private'), []),
+    tolerant(api.myChain(), []),   // names above me; needs the 20261103000000_reporting_chain.sql upgrade
   ]);
+  const above = (relation) => chain.find((c) => c.relation === relation)?.full_name;
   const nameIn = (list, id) => list.find((x) => x.id === id)?.name || '—';
   const managerName = options.supervisors?.find((s) => s.id === profile.manager_id)?.full_name || '—';
   const mine = privates.find((r) => r.id === profile.id);
@@ -30,7 +32,11 @@ export default async function render({ api, profile }) {
       line(isAr ? 'الرقم القومي' : 'National ID', h('span', { dir: 'ltr' }, maskNationalId(mine?.national_id))),
       line(isAr ? 'الصلاحية' : 'Role', roleLabel(profile.role)),
       line(isAr ? 'المسمى' : 'Job Title', profile.job_title || '—'),
-      line(isAr ? 'المشرف المباشر' : 'Direct Supervisor', managerName),
+      // An employee reports to a supervisor; a supervisor to the assistant manager in charge of their team, and that
+      // person to a manager. (Their own manager_id is only meaningful for employees.)
+      profile.role === 'employee' && line(isAr ? 'المشرف المباشر' : 'Direct Supervisor', managerName),
+      profile.role === 'supervisor' && line(roleLabel('assistant_manager'), above('assistant_manager') || '—'),
+      ['supervisor', 'assistant_manager'].includes(profile.role) && line(roleLabel('manager'), above('manager') || '—'),
       line(isAr ? 'الفريق' : 'Team', nameIn(teams, profile.team_id)),
       line(isAr ? 'الفرع' : 'Branch', nameIn(locations, profile.location_id))),
     field(isAr ? 'رقم الهاتف' : 'Phone Number', phone, isAr
