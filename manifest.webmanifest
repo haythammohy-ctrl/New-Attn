@@ -1,0 +1,15 @@
+{
+  "name": "الحضور والرواتب",
+  "short_name": "الحضور",
+  "description": "تسجيل حضور الموظفين وانصرافهم وحساب رواتبهم",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "dir": "rtl",
+  "lang": "ar",
+  "background_color": "#f3f5f7",
+  "theme_color": "#0f766e",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
