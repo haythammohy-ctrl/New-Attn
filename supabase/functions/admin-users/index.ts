@@ -24,7 +24,7 @@ function json(body: unknown) {
 }
 
 // Bump this when the file changes: { action: 'ping' } answers with it, so you can tell which copy is deployed.
-const VERSION = '2026-10-28.1';
+const VERSION = '2026-10-28.2';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
@@ -50,10 +50,9 @@ Deno.serve(async (req) => {
     if (body.action === 'change_my_password') {
       const { password } = body;
       if (!password || String(password).length < 6) return json({ error: 'weak_password' });
-      const { data: existing } = await admin.auth.admin.getUserById(user.id);
-      const appMeta = { ...(existing?.user?.app_metadata || {}) };
-      delete appMeta.must_change_password;
-      const { error } = await admin.auth.admin.updateUserById(user.id, { password, app_metadata: appMeta });
+      // The auth server MERGES app_metadata into what is stored, so leaving the key out would leave it as it was
+      // (and the person would be sent back to this screen after every sign-in). Say "false" explicitly.
+      const { error } = await admin.auth.admin.updateUserById(user.id, { password, app_metadata: { must_change_password: false } });
       if (error) {
         const code = /rate limit|too many/i.test(error.message) ? 'rate_limited' : 'server_error';
         return json({ error: code, detail: error.message });

@@ -225,10 +225,17 @@ export const api = {
 
   // Sets your OWN password and clears the "must change password" flag an admin-issued password sets.
   async changeMyPassword(password) {
+    const { data: { session: before } } = await sb.auth.getSession();
     const { data, error } = await sb.functions.invoke('admin-users', { body: { action: 'change_my_password', password } });
     fail(error);
     if (!data) throw codedError('server_error', 'The account service returned no response.');
     if (data.error) throw codedError(data.error, data.detail);
+    // The "must change password" flag travels inside the sign-in token, so the token in hand is out of date. Sign in
+    // again with the new password to get one that says it is cleared (the old one would keep sending the person back).
+    if (before?.user?.email) {
+      const { error: signInError } = await sb.auth.signInWithPassword({ email: before.user.email, password });
+      fail(signInError);
+    }
     return data;
   },
 };
