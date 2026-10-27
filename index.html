@@ -6,11 +6,18 @@
   <meta name="theme-color" content="#FF6000">
   <title>Talabat Mart — Attendance &amp; Payroll</title>
   <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="img/icons/favicon-32.png" sizes="32x32" type="image/png">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="img/icons/apple-touch-icon.png">
   <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
   <div id="app"><div class="spinner" role="status" aria-label="Loading"></div></div>
   <script type="module" src="js/main.js?v=20261022"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
+    }
+  </script>
 </body>
 </html>

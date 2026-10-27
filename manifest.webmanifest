@@ -1,5 +1,5 @@
 {
-  "name": "الحضور والرواتب",
+  "name": "الحضور والرواتب — Talabat Mart",
   "short_name": "الحضور",
   "description": "تسجيل حضور الموظفين وانصرافهم وحساب رواتبهم",
   "start_url": "./",
@@ -7,9 +7,26 @@
   "display": "standalone",
   "dir": "rtl",
   "lang": "ar",
-  "background_color": "#f3f5f7",
-  "theme_color": "#0f766e",
+  "background_color": "#FF6000",
+  "theme_color": "#FF6000",
   "icons": [
-    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+    {
+      "src": "img/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "img/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "img/icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ]
 }
