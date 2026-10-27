@@ -51,6 +51,22 @@ export function loginEmail(identifier) {
   return typed;
 }
 
+// The address to sign in with for whatever was typed in the login box. A staff member's name is turned into the same
+// internal address their account was created with (nameToPseudoEmail), so no lookup is needed before signing in.
+export function signInEmail(identifier) {
+  const typed = loginEmail(identifier);
+  return typed.includes('@') ? typed : nameToPseudoEmail(typed);
+}
+
+// Staff (supervisor, assistant manager, manager) sign in with their name, so the name must be English letters and
+// digits: an Arabic name would turn into the same internal address for everybody (see nameToPseudoEmail). Words are
+// separated by a single space, dot, dash or underscore, so the internal address never gets a doubled or trailing dot
+// ("Mr. Ahmed" would) that the auth service rejects. It needs a letter, so it can never read as a 14-digit national id.
+export const validStaffName = (name) => {
+  const clean = String(name || '').trim();
+  return /^[A-Za-z0-9]+([ ._-][A-Za-z0-9]+)*$/.test(clean) && /[A-Za-z]/.test(clean);
+};
+
 // Shows only the last four digits, for lists.
 export const maskNationalId = (nid) => (nid ? `${'•'.repeat(Math.max(0, nid.length - 4))}${nid.slice(-4)}` : '—');
 

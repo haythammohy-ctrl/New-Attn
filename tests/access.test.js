@@ -180,6 +180,22 @@ test('employees file and withdraw only their own pending leave', () => {
   throwsCode(() => checkWrite(ctx, 'leave_requests', 'delete', null, { employee_id: 'emp2', status: 'pending' }), 'forbidden');
 });
 
+test('only the admin archives ("deletes") or restores a person, and an archived account stays off for everyone else', () => {
+  const change = (actor, id, changes) => {
+    const old = { ...profiles.find((p) => p.id === id), ...(changes.__old || {}) };
+    delete changes.__old;
+    checkWrite(as(actor), 'profiles', 'update', { ...old, ...changes }, old);
+  };
+  change('admin', 'emp1', { archived: true, active: false });
+  change('admin', 'emp1', { __old: { archived: true, active: false }, archived: false, active: true });   // restore
+  throwsCode(() => change('hr', 'emp1', { archived: true, active: false }), 'forbidden');
+  throwsCode(() => change('sup1', 'emp1', { archived: true, active: false }), 'forbidden');
+  throwsCode(() => change('hr', 'emp1', { __old: { archived: true, active: false }, archived: false, active: true }), 'forbidden');
+  throwsCode(() => change('hr', 'emp1', { __old: { archived: true, active: false }, active: true }), 'forbidden');   // switching it back on
+  change('hr', 'emp1', { phone: '010' });                                                   // ordinary edits are unaffected
+  change('hr', 'emp1', { __old: { archived: true, active: false }, phone: '010' });          // even on an archived account
+});
+
 test('the assistant manager cannot touch admin accounts or hand out manager / admin roles', () => {
   const change = (actor, id, changes) => {
     const old = profiles.find((p) => p.id === id);

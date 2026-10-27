@@ -195,6 +195,9 @@ export function checkWrite(ctx, table, op, row, old) {
       const privileged = (role) => rankOf(role) >= rankOf('assistant_manager');
       if (roleChanged && (privileged(row.role) || privileged(old.role))) fail('role_forbidden');
       if (old.id === user.id && (roleChanged || row.active !== old.active)) fail('role_forbidden');
+      // Archiving ("delete") and restoring belong to the admin, and an archived account stays off for everyone else.
+      if (Boolean(row.archived) !== Boolean(old.archived)) fail('forbidden');
+      if (old.archived && row.active) fail('forbidden');
       return;
     }
     case 'profile_private': allowed('national_ids', 'edit', (op === 'delete' ? old : row).id); return;

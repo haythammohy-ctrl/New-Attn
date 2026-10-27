@@ -1,7 +1,7 @@
 // Live backend. Needs SUPABASE_URL and SUPABASE_ANON_KEY in js/config.js.
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import { CONFIG } from '../config.js';
-import { loginEmail } from '../lib/registration.js';
+import { signInEmail } from '../lib/registration.js';
 import { codedError } from './errors.js';
 import { PK, UNIQUE, TABLES_ORDER } from './tables.js';
 
@@ -11,7 +11,7 @@ const SERVER_CODES = new Set([
   'not_active', 'no_location', 'shift_not_open', 'bad_shift', 'low_accuracy', 'out_of_range',
   'already_checked_in', 'already_checked_out', 'not_checked_in', 'run_locked',
   'self_edit', 'month_locked', 'reason_required', 'forbidden_status', 'role_forbidden',
-  'verification_not_pending', 'invalid_decision', 'signup_role_forbidden',
+  'verification_not_pending', 'invalid_decision', 'signup_role_forbidden', 'self_archive',
 ]);
 
 function fail(error) {
@@ -66,18 +66,10 @@ export const api = {
   // `identifier` is an email, a 14-digit national id for an employee, or a full name for staff
   async signIn({ identifier, email, password }) {
     const raw = (identifier ?? email ?? '').trim();
-    let targetEmail = loginEmail(raw);
-
-    // If identifier doesn't have '@' and isn't 14 digits, it's a Name login (for Manager, Supervisor, Admin).
-    // Look up the profile by name to find their registered auth email.
-    if (!raw.includes('@') && !/^\d{14}$/.test(raw.replace(/[\s-]/g, ''))) {
-      const { data, error } = await sb.from('profiles').select('email').ilike('full_name', raw).maybeSingle();
-      if (!error && data?.email) {
-        targetEmail = data.email;
-      }
-    }
-
-    const { error } = await sb.auth.signInWithPassword({ email: targetEmail, password });
+    // An email stays an email, 14 digits become the employee's internal address, and a name (staff) becomes the
+    // internal address their account was created with. Nobody can read the profiles table before signing in, so
+    // there is nothing to look up here.
+    const { error } = await sb.auth.signInWithPassword({ email: signInEmail(raw), password });
     fail(error);
   },
 
@@ -98,6 +90,13 @@ export const api = {
     fail(titles.error);
     fail(supervisors.error);
     return { jobTitles: titles.data, supervisors: supervisors.data };
+  },
+
+  // "Delete" and "Restore" a person (admin only): archive_person() in the database switches the account off or on and
+  // hides it from the lists, and keeps all their history.
+  async archivePerson({ id, archived }) {
+    const { error } = await sb.rpc('archive_person', { p_id: id, p_archived: archived });
+    fail(error);
   },
 
   // The names above me: [{ relation: 'assistant_manager' | 'manager', id, full_name }], see my_chain() in the database.

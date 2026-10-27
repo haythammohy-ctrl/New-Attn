@@ -1,5 +1,5 @@
 import { errorText } from '../api/errors.js';
-import { cleanNationalId, nameToPseudoEmail, pseudoEmail, validNationalId } from '../lib/registration.js';
+import { cleanNationalId, nameToPseudoEmail, pseudoEmail, validNationalId, validStaffName } from '../lib/registration.js';
 import { getLang, t } from '../lib/i18n.js';
 import { btn, field, h, select, toast } from '../ui.js';
 
@@ -97,7 +97,7 @@ export async function renderSignup({ api, onDone, onBack, admin = false }) {
 // Admin-created staff account (manager/supervisor): name and password only.
 export function renderAdminCreateStaff({ api, role, roleLabel, onDone, onBack }) {
   const isAr = getLang() === 'ar';
-  const fullName = h('input', { type: 'text', autocomplete: 'name', placeholder: isAr ? 'الاسم بالكامل (سيستخدم للدخول)' : 'Full Name (used for sign-in)' });
+  const fullName = h('input', { type: 'text', autocomplete: 'name', placeholder: isAr ? 'الاسم بالإنجليزي، مثل Mohamed Arafa (يُستخدم للدخول)' : 'Name in English, like Mohamed Arafa (used for sign-in)' });
   const password = h('input', { type: 'password', autocomplete: 'new-password' });
   const confirm = h('input', { type: 'password', autocomplete: 'new-password' });
   const errMsg = h('p', { class: 'muted', style: { color: 'var(--danger)' } });
@@ -111,6 +111,13 @@ export function renderAdminCreateStaff({ api, role, roleLabel, onDone, onBack })
 
     if (!name) {
       errMsg.textContent = isAr ? 'الاسم مطلوب لتسجيل الدخول.' : 'Name is required for sign-in.';
+      errMsg.hidden = false;
+      return;
+    }
+    if (!validStaffName(name)) {
+      errMsg.textContent = isAr
+        ? 'اكتب اسم الدخول بحروف إنجليزية وأرقام فقط، مثل Mohamed Arafa أو Inbound01.'
+        : 'Write the sign-in name with English letters and digits only, like Mohamed Arafa or Inbound01.';
       errMsg.hidden = false;
       return;
     }

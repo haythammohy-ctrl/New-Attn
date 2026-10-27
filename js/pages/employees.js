@@ -4,7 +4,7 @@ import { assignableRoles, can, roleLabel } from '../lib/access.js';
 import { chainOf } from '../lib/hierarchy.js';
 import { cleanNationalId, maskNationalId, validNationalId } from '../lib/registration.js';
 import { getLang, t } from '../lib/i18n.js';
-import { badge, btn, dataTable, h, modal, money, toast } from '../ui.js';
+import { badge, btn, confirmBox, dataTable, h, modal, money, toast } from '../ui.js';
 
 function allowancesEditor(initial) {
   const isAr = getLang() === 'ar';
@@ -29,6 +29,9 @@ function allowancesEditor(initial) {
 }
 
 const tolerant = (promise) => promise.catch((err) => (err.code === 'needs_migration' ? [] : Promise.reject(err)));
+
+// Kept across refreshes: whether the "Deleted" list is open.
+let showDeleted = false;
 
 export default async function render({ api, profile, settings, perms, refresh }) {
   const isAr = getLang() === 'ar';
@@ -286,7 +289,27 @@ export default async function render({ api, profile, settings, perms, refresh })
     dialog = modal({ title: '', body: node, buttons: [] });
   }
 
-  const pending = people.filter((p) => !p.active);
+  // "Delete" = archive: the account is switched off and hidden, and everything it did stays (admin only).
+  const archivedPeople = people.filter((p) => p.archived);
+  const livePeople = people.filter((p) => !p.archived);
+  const pending = livePeople.filter((p) => !p.active);
+  const canArchive = (p) => isAdmin && p.id !== profile.id && p.role !== 'admin';
+
+  async function archive(p, archived) {
+    const name = p.full_name || p.employee_code || p.email;
+    const ok = archived
+      ? await confirmBox(isAr
+        ? `هل تريد حذف «${name}»؟\nسيتوقف حسابه ولن يستطيع الدخول، ويختفي من القوائم. وتبقى بياناته القديمة (الحضور والإجازات والمرتبات) محفوظة، ويظل رقمه القومي محجوزًا. ويمكنك استرجاعه من «المحذوفون».`
+        : `Delete "${name}"?\nTheir account is switched off, they can no longer sign in, and they disappear from the lists. Their past data (attendance, leave and payslips) is kept and their national ID stays reserved. You can restore them from "Deleted".`,
+      isAr ? 'حذف' : 'Delete')
+      : await confirmBox(isAr ? `هل تريد استرجاع «${name}» وتفعيل حسابه من جديد؟` : `Restore "${name}" and switch their account back on?`,
+        isAr ? 'استرجاع' : 'Restore', 'primary');
+    if (!ok) return;
+    await api.archivePerson({ id: p.id, archived });
+    toast(archived ? (isAr ? 'تم الحذف. بياناته القديمة محفوظة.' : 'Deleted. Their past data is kept.') : (isAr ? 'تم الاسترجاع.' : 'Restored.'));
+    refresh();
+  }
+
   const columns = [
     { label: t('common.name'), render: (p) => p.full_name || p.email || '—' },
     { label: isAr ? 'الكود' : 'Code', render: (p) => p.employee_code || '—' },
@@ -302,9 +325,23 @@ export default async function render({ api, profile, settings, perms, refresh })
       label: '',
       render: (p) => h('div', { class: 'row' },
         editable(p) && btn(t('common.edit'), () => edit(p), 'small'),
-        isAdmin && p.id !== profile.id && btn(t('employees.resetPassword'), () => resetPassword(p), 'small ghost')),
+        isAdmin && p.id !== profile.id && btn(t('employees.resetPassword'), () => resetPassword(p), 'small ghost'),
+        canArchive(p) && btn(t('common.delete'), () => archive(p, true), 'small danger')),
     },
   ];
+
+  const archivedCard = () => h('div', { class: 'card' },
+    h('h3', {}, `${isAr ? 'المحذوفون' : 'Deleted'} (${archivedPeople.length})`),
+    h('p', { class: 'muted' }, isAr
+      ? 'حساباتهم متوقفة ومخفية من القوائم، وبياناتهم القديمة محفوظة. اضغط «استرجاع» لإعادة أي شخص.'
+      : 'Their accounts are switched off and hidden from the lists; their past data is kept. Press "Restore" to bring anyone back.'),
+    dataTable([
+      { label: t('common.name'), render: (p) => p.full_name || p.email || '—' },
+      { label: isAr ? 'الكود' : 'Code', render: (p) => p.employee_code || '—' },
+      { label: isAr ? 'الدور' : 'Role', render: (p) => h('span', { class: 'tag-badge' }, roleLabel(p.role)) },
+      ...(canSeeNid ? [{ label: isAr ? 'الرقم القومي' : 'National ID', render: (p) => h('span', { dir: 'ltr' }, maskNationalId(nidOf(p.id))) }] : []),
+      { label: '', render: (p) => canArchive(p) && btn(isAr ? 'استرجاع' : 'Restore', () => archive(p, false), 'small primary') },
+    ], archivedPeople, isAr ? 'لا يوجد محذوفون.' : 'Nobody has been deleted.'));
 
   return h('div', {},
     isAdmin && h('div', { class: 'card dotted-box' },
@@ -324,6 +361,9 @@ export default async function render({ api, profile, settings, perms, refresh })
         ...(canSeeNid ? [{ label: isAr ? 'الرقم القومي' : 'National ID', render: (p) => h('span', { dir: 'ltr' }, maskNationalId(nidOf(p.id))) }] : []),
         { label: '', render: (p) => editable(p) && btn(t('employees.reviewAndActivate'), () => edit(p, true), 'small primary') },
       ], pending)),
-    h('div', { class: 'card' }, dataTable(columns, people, t('employees.empty'))),
+    h('div', { class: 'card' }, dataTable(columns, livePeople, t('employees.empty'))),
+    isAdmin && archivedPeople.length > 0 && (showDeleted
+      ? [archivedCard(), btn(isAr ? 'إخفاء المحذوفين' : 'Hide deleted', () => { showDeleted = false; refresh(); }, 'ghost')]
+      : btn(`${isAr ? 'المحذوفون' : 'Deleted'} (${archivedPeople.length})`, () => { showDeleted = true; refresh(); }, 'ghost')),
   );
 }

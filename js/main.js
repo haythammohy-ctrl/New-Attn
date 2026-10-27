@@ -103,6 +103,14 @@ async function boot() {
       app.replaceChildren(renderLogin({ api, onDone: boot }));
       return;
     }
+    if (profile.archived) {
+      app.replaceChildren(messageCard(
+        getLang() === 'ar' ? 'الحساب متوقف' : 'Account Disabled',
+        getLang() === 'ar' ? 'تم إيقاف حسابك. كلّم الإدارة لو ده غلط.' : 'Your account has been disabled. Contact the administration if this is a mistake.',
+        btn(t('topbar.logout'), signOut, 'primary'),
+      ));
+      return;
+    }
     if (!profile.active) {
       app.replaceChildren(await pendingScreen(profile));
       return;

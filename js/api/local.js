@@ -182,6 +182,20 @@ export const api = {
     return { ok: true };
   },
 
+  // Same rules as archive_person() in the database: admin only, never yourself, never another admin. Switches the
+  // account off (archived) or back on (restored); all their history stays.
+  async archivePerson({ id, archived }) {
+    const user = me();
+    if (!user || user.role !== 'admin' || typeof archived !== 'boolean') throw codedError('forbidden');
+    const target = db.profiles.find((p) => p.id === id);
+    if (!target) throw codedError('forbidden');
+    if (target.id === user.id) throw codedError('self_archive');
+    if (target.role === 'admin') throw codedError('role_forbidden');
+    target.archived = archived;
+    target.active = !archived;
+    persist();
+  },
+
   // Demo accounts have no real password, so this just clears the flag the forced-change screen checks.
   async changeMyPassword() {
     const mine = signedInProfile();
@@ -228,6 +242,7 @@ export const api = {
       ? rows.find((r) => uniq.every((k) => r[k] === row[k]))
       : row.id && rows.find((r) => r.id === row.id);
     const after = existing ? { ...existing, ...clone(row) } : clone(row);
+    if (table === 'profiles' && after.archived) after.active = false;   // an archived account is always off, as in the database
     if (table === 'attendance') {
       if (!after.verification_status) after.verification_status = 'approved';
       if (!after.source) after.source = 'manual';

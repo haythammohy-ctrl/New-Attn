@@ -55,7 +55,7 @@ export function buildSeed() {
 
   const person = (full_name, email, role, extra = {}) => ({
     id: id(), full_name, email, phone: '', role, team_id: null, manager_id: null, job_title: null, employee_code: null,
-    shift_id: null, location_id: location.id, hire_date: '2024-01-01', active: true, created_at: new Date().toISOString(),
+    shift_id: null, location_id: location.id, hire_date: '2024-01-01', active: true, archived: false, created_at: new Date().toISOString(),
     ...extra,
   });
   const admin = person('أحمد (مدير النظام)', 'admin@demo.test', 'admin');

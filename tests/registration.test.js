@@ -1,7 +1,7 @@
 import { test, eq } from './harness.js';
 import {
-  cleanNationalId, defaultLocationId, formatEmployeeCode, isPseudoEmail, loginEmail, maskNationalId, pseudoEmail, toAsciiDigits,
-  validNationalId, validateRegistration,
+  cleanNationalId, defaultLocationId, formatEmployeeCode, isPseudoEmail, loginEmail, maskNationalId, nameToPseudoEmail,
+  pseudoEmail, signInEmail, toAsciiDigits, validNationalId, validStaffName, validateRegistration,
 } from '../js/lib/registration.js';
 
 const employee = { id: 'e', name: 'موظف', kind: 'employee' };
@@ -11,6 +11,49 @@ const good = {
   managerId: 'm1', supervisorCount: 2, password: 'secret1', confirm: 'secret1',
 };
 const problem = (changes) => validateRegistration({ ...good, ...changes });
+
+test('signInEmail: staff typing their name get the address their account was created with', () => {
+  // the account is created with nameToPseudoEmail(name); signing in with the same name must give the same address
+  eq(signInEmail('Inbound01'), 'inbound01@staff.invalid');
+  eq(signInEmail('Inbound01'), nameToPseudoEmail('Inbound01'));
+  eq(signInEmail('Mohamed Arafa'), 'mohamed.arafa@staff.invalid');
+  eq(signInEmail('  MOHAMED   arafa '), 'mohamed.arafa@staff.invalid');
+});
+
+test('signInEmail: an email stays an email and 14 digits stay the employee address', () => {
+  eq(signInEmail('Boss@Example.com '), 'boss@example.com');
+  eq(signInEmail('29912121234565'), '29912121234565@staff.invalid');
+  eq(signInEmail('٢٩٩١٢١٢١٢٣٤٥٦٥'), '29912121234565@staff.invalid');   // Arabic digits
+});
+
+test('validStaffName: English letters and digits only, so the sign-in address is unique to the person', () => {
+  eq(validStaffName('Inbound01'), true);
+  eq(validStaffName('Mohamed Arafa'), true);
+  eq(validStaffName('mohamed.arafa-2'), true);
+  eq(validStaffName('محمد عرفة'), false);          // would all become user@staff.invalid
+  eq(validStaffName('Mohamed محمد'), false);
+  eq(validStaffName('   '), false);
+  eq(validStaffName(''), false);
+  eq(validStaffName(null), false);
+  eq(validStaffName('.hidden'), false);
+  // names whose internal address would be rejected by the auth service, or clash with a national id
+  eq(validStaffName('Mr. Ahmed'), false);          // "mr..ahmed@..."
+  eq(validStaffName('Ahmed.'), false);             // "ahmed.@..."
+  eq(validStaffName('a..b'), false);
+  eq(validStaffName('1234 5678 9012 34'), false);  // would read as a national id at sign-in
+  eq(validStaffName('12345678901234'), false);
+  eq(validStaffName('Inbound01'), true);
+  eq(validStaffName('Mohamed A. Arafa'), false);
+  eq(validStaffName('Mohamed Arafa'), true);
+});
+
+test('validStaffName: every accepted name gives a sign-in address with no doubled or edge dots', () => {
+  for (const name of ['Inbound01', 'Mohamed Arafa', 'mohamed.arafa', 'a-b_c d', 'Mohamed  Arafa'.replace(/\s+/g, ' ')]) {
+    eq(validStaffName(name), true, name);
+    const local = nameToPseudoEmail(name).split('@')[0];
+    eq(/^[a-z0-9]+([._-][a-z0-9]+)*$/.test(local), true, local);
+  }
+});
 
 test('defaultLocationId: the branch chosen in Settings, only while it still exists', () => {
   const branches = [{ id: 'a' }, { id: 'b' }];
