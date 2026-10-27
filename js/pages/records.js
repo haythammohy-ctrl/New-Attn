@@ -1,5 +1,5 @@
 import { buildForm } from '../components/form.js';
-import { can } from '../lib/access.js';
+import { can, scopeOf, teamsOf } from '../lib/access.js';
 import { addDays, formatTime, monthRange, shiftMonth, todayIn, zonedTimeToISO } from '../lib/dates.js';
 import { getLang } from '../lib/i18n.js';
 import { checkoutMinutesAt, isOvernight, lateMinutesAt, shiftInstance } from '../lib/shifts.js';
@@ -30,16 +30,20 @@ export default async function render({ api, profile, settings, perms }) {
     api.list('teams', { order: 'name' }),
   ]);
 
-  // System administrators and HR see all; supervisors see their own team; employees see themselves.
+  // Scope comes from the permission library (the same rule the database applies), not from
+  // hardcoded role checks: an assistant manager sees their teams, a supervisor their team's
+  // employees, and a "team"-scoped manager the teams they own.
+  const scopedTeams = teamsOf(profile, teams);
+  const scopedAll = ['attendance'].some((f) => scopeOf(perms, f) === 'all');
   const accessibleStaff = people.filter((p) => {
     if (!p.active) return false;
-    if (isAdmin || profile.role === 'assistant_manager') return true;
-    if (profile.role === 'supervisor' || profile.role === 'manager') return p.team_id === profile.team_id || p.id === profile.id;
-    return p.id === profile.id;
+    if (scopedAll) return true;
+    if (p.id === profile.id) return true;
+    if (!scopedTeams.includes(p.team_id)) return false;
+    return profile.role !== 'supervisor' || p.role !== 'supervisor';   // co-supervisors are peers
   });
 
-  const accessibleTeamIds = new Set(accessibleStaff.map((p) => p.team_id).filter(Boolean));
-  const availableTeams = teams.filter((t) => isAdmin || profile.role === 'assistant_manager' || accessibleTeamIds.has(t.id));
+  const availableTeams = teams.filter((t) => scopedAll || scopedTeams.includes(t.id));
 
   const addable = accessibleStaff.filter((p) => p.id !== profile.id || isAdmin);
   const nameOf = (id) => people.find((p) => p.id === id)?.full_name || '—';

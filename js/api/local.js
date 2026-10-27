@@ -50,6 +50,30 @@ function rule(fn) {
   }
 }
 
+// Column-level constraints from supabase/schema.sql, so the demo backend refuses what the
+// real database would refuse (a negative salary, a blank name, an inverted leave period, a
+// row pointing at a person who does not exist). Kept next to the schema, not in the pages.
+const REQUIRED = {
+  teams: ['name'],
+  shifts: ['name'],
+  leave_requests: ['employee_id', 'type_id', 'from_date', 'to_date'],
+  salary_structures: ['employee_id', 'base_salary'],
+};
+function validateColumns(table, row) {
+  const fail = (code) => { throw codedError(code); };
+  for (const key of REQUIRED[table] || []) {
+    if (row[key] == null || (typeof row[key] === 'string' && !row[key].trim())) fail('invalid');
+  }
+  if (table === 'teams' && String(row.name ?? '').trim().length > 60) fail('invalid');
+  if (table === 'salary_structures' && Number(row.base_salary) < 0) fail('invalid');
+  if (table === 'adjustments' && Number(row.amount) < 0) fail('invalid');
+  if (table === 'attendance' && (Number(row.late_minutes) < 0 || Number(row.early_leave_minutes) < 0 || Number(row.overtime_minutes) < 0)) fail('invalid');
+  if (table === 'leave_requests' && row.from_date && row.to_date && row.to_date < row.from_date) fail('invalid');
+  // Foreign keys the schema enforces and the demo would otherwise silently accept.
+  const personOf = (id) => db.profiles.some((p) => p.id === id);
+  if ((table === 'attendance' || table === 'leave_requests' || table === 'salary_structures' || table === 'adjustments') && !personOf(row.employee_id)) fail('invalid');
+}
+
 function matches(row, { eq = {}, gte = {}, lte = {}, inList = {} }) {
   return Object.entries(eq).every(([k, v]) => row[k] === v)
     && Object.entries(gte).every(([k, v]) => row[k] >= v)
@@ -248,6 +272,9 @@ export const api = {
       if (!after.source) after.source = 'manual';
     }
     rule(() => checkWrite({ user, db }, table, existing ? 'update' : 'insert', after, existing));
+    // Column constraints that exist in supabase/schema.sql, mirrored here so the demo
+    // backend refuses the same data the real database would refuse.
+    validateColumns(table, after);
     // the database has a unique constraint on team names and on job titles
     if (['teams', 'job_titles'].includes(table) && rows.some((r) => r.name === after.name && r.id !== after.id)) throw codedError('duplicate');
 
