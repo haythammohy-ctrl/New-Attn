@@ -376,7 +376,7 @@ export default async function render({ api, settings, perms }) {
               await show(active);
             }, 'small')),
         }] : []),
-      ], rows, text('لا توجد بيانات بعد.', 'No data yet.')));
+      ], rows, text('لا توجد بيانات بعد.', 'No data yet.'), { name: `setup-${section.key}` }));
   }
 
   await show(active);

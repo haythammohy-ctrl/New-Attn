@@ -139,8 +139,8 @@ export default async function render({ api, profile, settings, perms }) {
       dataTable([
         { label: t('payslips.month'), render: (s) => s.month.slice(0, 7) },
         ...(canSeeSalaries ? [
-          { label: t('payslips.baseSalary'), class: 'num', render: (s) => `${money(s.base_salary)} ${settings.currency}` },
-          { label: t('payslips.netSalary'), class: 'num', render: (s) => `${money(s.net_salary)} ${settings.currency}` },
+          { label: t('payslips.baseSalary'), class: 'num', exportLabel: `${t('payslips.baseSalary')} (${settings.currency})`, value: (s) => Number(s.base_salary), render: (s) => `${money(s.base_salary)} ${settings.currency}` },
+          { label: t('payslips.netSalary'), class: 'num', exportLabel: `${t('payslips.netSalary')} (${settings.currency})`, value: (s) => Number(s.net_salary), render: (s) => `${money(s.net_salary)} ${settings.currency}` },
         ] : []),
         {
           label: '',

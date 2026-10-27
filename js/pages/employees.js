@@ -341,7 +341,7 @@ export default async function render({ api, profile, settings, perms, refresh })
       { label: isAr ? 'الدور' : 'Role', render: (p) => h('span', { class: 'tag-badge' }, roleLabel(p.role)) },
       ...(canSeeNid ? [{ label: isAr ? 'الرقم القومي' : 'National ID', render: (p) => h('span', { dir: 'ltr' }, maskNationalId(nidOf(p.id))) }] : []),
       { label: '', render: (p) => canArchive(p) && btn(isAr ? 'استرجاع' : 'Restore', () => archive(p, false), 'small primary') },
-    ], archivedPeople, isAr ? 'لا يوجد محذوفون.' : 'Nobody has been deleted.'));
+    ], archivedPeople, isAr ? 'لا يوجد محذوفون.' : 'Nobody has been deleted.', { name: 'employees-deleted' }));
 
   return h('div', {},
     isAdmin && h('div', { class: 'card dotted-box' },
@@ -360,8 +360,8 @@ export default async function render({ api, profile, settings, perms, refresh })
         { label: isAr ? 'الكود' : 'Code', render: (p) => p.employee_code || '—' },
         ...(canSeeNid ? [{ label: isAr ? 'الرقم القومي' : 'National ID', render: (p) => h('span', { dir: 'ltr' }, maskNationalId(nidOf(p.id))) }] : []),
         { label: '', render: (p) => editable(p) && btn(t('employees.reviewAndActivate'), () => edit(p, true), 'small primary') },
-      ], pending)),
-    h('div', { class: 'card' }, dataTable(columns, livePeople, t('employees.empty'))),
+      ], pending, undefined, { name: 'employees-pending' })),
+    h('div', { class: 'card' }, dataTable(columns, livePeople, t('employees.empty'), { name: 'employees' })),
     isAdmin && archivedPeople.length > 0 && (showDeleted
       ? [archivedCard(), btn(isAr ? 'إخفاء المحذوفين' : 'Hide deleted', () => { showDeleted = false; refresh(); }, 'ghost')]
       : btn(`${isAr ? 'المحذوفون' : 'Deleted'} (${archivedPeople.length})`, () => { showDeleted = true; refresh(); }, 'ghost')),

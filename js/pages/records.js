@@ -3,8 +3,8 @@ import { can } from '../lib/access.js';
 import { addDays, formatTime, monthRange, shiftMonth, todayIn, zonedTimeToISO } from '../lib/dates.js';
 import { getLang } from '../lib/i18n.js';
 import { checkoutMinutesAt, isOvernight, lateMinutesAt, shiftInstance } from '../lib/shifts.js';
-import { btn, confirmBox, downloadCSV, field, fmtDate, h, modal, select, toast } from '../ui.js';
-import { attendanceStatus, attendanceTable, totals } from './history.js';
+import { btn, confirmBox, field, fmtDate, h, modal, select, toast } from '../ui.js';
+import { attendanceTable, totals } from './history.js';
 
 export default async function render({ api, profile, settings, perms }) {
   const isAr = getLang() === 'ar';
@@ -121,6 +121,7 @@ export default async function render({ api, profile, settings, perms }) {
             await load();
           }, 'small')),
       }],
+      { name: `attendance-${specificDate || month}` },
     ));
   }
 
@@ -210,18 +211,6 @@ export default async function render({ api, profile, settings, perms }) {
     });
   }
 
-  function exportCSV() {
-    downloadCSV(`attendance-${month}.csv`, [
-      isAr
-        ? ['الموظف', 'التاريخ', 'الوردية', 'وقت الحضور', 'وقت الانصراف', 'التأخير (دقيقة)', 'الانصراف المبكر (دقيقة)', 'العمل الإضافي (دقيقة)', 'الحالة']
-        : ['Employee', 'Date', 'Shift', 'Clock In', 'Clock Out', 'Late (minutes)', 'Early Departure (minutes)', 'Overtime (minutes)', 'Status'],
-      ...rows.map((r) => [
-        nameOf(r.employee_id), r.work_date, shiftName(r.shift_id), formatTime(r.check_in_at, tz), formatTime(r.check_out_at, tz),
-        r.late_minutes, r.early_leave_minutes, r.overtime_minutes, attendanceStatus(r.status)[0] || r.status,
-      ]),
-    ]);
-  }
-
   const step = (delta) => () => { month = shiftMonth(month, delta); return load(); };
   await load();
 
@@ -240,7 +229,6 @@ export default async function render({ api, profile, settings, perms }) {
       field(text('الموظف', 'Employee'), employeeSelect),
       field(text('بحث سريع', 'Search'), searchInput),
       canEdit && btn(text('إضافة سجل', 'Add Record'), () => openForm(null), 'primary'),
-      btn(text('تصدير CSV', 'Export CSV'), exportCSV),
     ),
     summary,
     tableBox);

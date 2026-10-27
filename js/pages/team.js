@@ -59,7 +59,7 @@ export default async function render({ api, profile, settings, perms }) {
         { label: text('الحالة', 'Status'), render: (r) => badge(...r.state) },
         { label: text('حضور', 'Clock In'), render: (r) => formatTime(r.a?.check_in_at, tz) || '—' },
         { label: text('انصراف', 'Clock Out'), render: (r) => formatTime(r.a?.check_out_at, tz) || '—' },
-        { label: text('تأخير', 'Late'), render: (r) => (r.a?.late_minutes ? hoursText(r.a.late_minutes) : '—') },
+        { label: text('تأخير', 'Late'), exportLabel: text('تأخير (دقيقة)', 'Late (minutes)'), value: (r) => r.a?.late_minutes || 0, render: (r) => (r.a?.late_minutes ? hoursText(r.a.late_minutes) : '—') },
       ], rows, text('لا يوجد موظفون ضمن نطاق إدارتك.', 'No employees in your management scope.'))),
   );
 }

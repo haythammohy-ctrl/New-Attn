@@ -10,17 +10,19 @@ export function attendanceStatus(status) {
 }
 
 // Shared with the HR records page. Extra columns appear after the date, with trailing columns at the end.
-export function attendanceTable(rows, tz, extraColumns = [], trailing = []) {
+export function attendanceTable(rows, tz, extraColumns = [], trailing = [], opts = {}) {
   const isAr = getLang() === 'ar';
   const weekdays = isAr ? AR_WEEKDAYS : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const minutes = isAr ? '(دقيقة)' : '(minutes)';
+  // value: sort and export by the real figure (an ISO date, minutes) and not by the text shown ("1h 30m").
   const columns = [
-    { label: isAr ? 'التاريخ' : 'Date', render: (r) => `${weekdays[weekday(r.work_date)]} ${fmtDate(r.work_date)}` },
+    { label: isAr ? 'التاريخ' : 'Date', value: (r) => r.work_date, render: (r) => `${weekdays[weekday(r.work_date)]} ${fmtDate(r.work_date)}` },
     ...extraColumns,
     { label: isAr ? 'حضور' : 'Clock In', render: (r) => formatTime(r.check_in_at, tz) || '—' },
     { label: isAr ? 'انصراف' : 'Clock Out', render: (r) => formatTime(r.check_out_at, tz) || '—' },
-    { label: isAr ? 'تأخير' : 'Late', render: (r) => (r.late_minutes ? hoursText(r.late_minutes) : '—') },
-    { label: isAr ? 'الانصراف المبكر' : 'Early Departure', render: (r) => (r.early_leave_minutes ? hoursText(r.early_leave_minutes) : '—') },
-    { label: isAr ? 'العمل الإضافي' : 'Overtime', render: (r) => (r.overtime_minutes ? hoursText(r.overtime_minutes) : '—') },
+    { label: isAr ? 'تأخير' : 'Late', exportLabel: `${isAr ? 'تأخير' : 'Late'} ${minutes}`, value: (r) => r.late_minutes || 0, render: (r) => (r.late_minutes ? hoursText(r.late_minutes) : '—') },
+    { label: isAr ? 'الانصراف المبكر' : 'Early Departure', exportLabel: `${isAr ? 'الانصراف المبكر' : 'Early Departure'} ${minutes}`, value: (r) => r.early_leave_minutes || 0, render: (r) => (r.early_leave_minutes ? hoursText(r.early_leave_minutes) : '—') },
+    { label: isAr ? 'العمل الإضافي' : 'Overtime', exportLabel: `${isAr ? 'العمل الإضافي' : 'Overtime'} ${minutes}`, value: (r) => r.overtime_minutes || 0, render: (r) => (r.overtime_minutes ? hoursText(r.overtime_minutes) : '—') },
     {
       label: isAr ? 'الحالة' : 'Status',
       render: (r) => r.verification_status === 'rejected'
@@ -37,7 +39,7 @@ export function attendanceTable(rows, tz, extraColumns = [], trailing = []) {
     },
     ...trailing,
   ];
-  return dataTable(columns, rows, isAr ? 'لا توجد سجلات لهذا الشهر.' : 'No records for this month.');
+  return dataTable(columns, rows, isAr ? 'لا توجد سجلات لهذا الشهر.' : 'No records for this month.', opts);
 }
 
 export function totals(rows) {

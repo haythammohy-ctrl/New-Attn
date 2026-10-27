@@ -3,7 +3,8 @@
 import { roleLabel, can } from '../lib/access.js';
 import { chainOf } from '../lib/hierarchy.js';
 import { getLang } from '../lib/i18n.js';
-import { badge, btn, confirmBox, field, h, modal, select, toast } from '../ui.js';
+import { exportFilename, localIsoDate } from '../lib/tablekit.js';
+import { badge, btn, confirmBox, downloadCSV, field, h, modal, select, toast } from '../ui.js';
 
 export default async function render({ api, perms, refresh }) {
   const isAr = getLang() === 'ar';
@@ -83,6 +84,21 @@ export default async function render({ api, perms, refresh }) {
     });
   }
 
+  // One file with every team and its members: team, the assistant manager in charge, the manager above, then each member.
+  function exportTeams() {
+    const header = isAr
+      ? ['الفريق', `المسؤول عن الفريق (${asstLabel})`, bossLabel, 'العضو', 'المسمى', 'الدور']
+      : ['Team', `${asstLabel} in charge`, bossLabel, 'Member', 'Job title', 'Role'];
+    const body = teams.flatMap((team) => {
+      const lead = [team.name, managerName(team.manager_id) || '', bossName(team) || ''];
+      const members = membersOf(team.id);
+      return members.length
+        ? members.map((p) => [...lead, p.full_name, p.job_title || '', roleLabel(p.role)])
+        : [[...lead, '', '', '']];
+    });
+    downloadCSV(exportFilename('teams', localIsoDate()), [header, ...body]);
+  }
+
   const teamCard = (team) => h('div', { class: 'card' },
     h('div', { class: 'row spread' },
       h('h3', {}, `${team.name} (${membersOf(team.id).length})`),
@@ -114,7 +130,9 @@ export default async function render({ api, perms, refresh }) {
       h('p', { class: 'muted' }, isAr
         ? `الهيكل: موظف ← مشرف ← ${asstLabel} ← ${bossLabel}. لكل فريق مسؤول واحد (${asstLabel})، وقد يكون مسؤولًا عن عدة فرق. ويضم كل فريق مشرفًا أو أكثر وموظفين. في إعدادات الصلاحيات يشير نطاق «الفريق» للمسؤول إلى كل فرقه، وللمشرف إلى موظفي فريقه فقط (دون المشرفين الآخرين معه).`
         : `Structure: employee → supervisor → ${asstLabel} → ${bossLabel}. Each team has one ${asstLabel} in charge, who may own several teams. A team can have any number of supervisors and employees. In the permission matrix, the "team" scope means every team an ${asstLabel} owns, and for a supervisor it means the employees of their own team only (not their co-supervisors).`),
-      canEdit && btn(isAr ? 'إنشاء فريق' : 'Create Team', () => nameDialog(null), 'primary')),
+      h('div', { class: 'row' },
+        canEdit && btn(isAr ? 'إنشاء فريق' : 'Create Team', () => nameDialog(null), 'primary'),
+        btn(isAr ? 'تصدير Excel' : 'Export Excel', exportTeams, '', { disabled: !teams.length }))),
     ...teams.map(teamCard),
     unassigned.length > 0 && h('div', { class: 'card' },
       h('h3', {}, isAr ? `موظفون غير منتمين إلى فريق (${unassigned.length})` : `Employees not assigned to a team (${unassigned.length})`),

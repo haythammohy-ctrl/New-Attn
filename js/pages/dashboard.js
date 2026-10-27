@@ -117,7 +117,7 @@ export default async function render({ api, profile, settings, perms }) {
         },
       },
       { label: isAr ? 'وقت الانصراف' : 'Clock Out', render: (r) => (r.check_out_at ? formatTime(r.check_out_at, tz) : badge(isAr ? 'قيد العمل' : 'In progress', 'ok')) },
-      { label: isAr ? 'إضافي' : 'Overtime', render: (r) => (r.overtime_minutes > 0 ? hoursText(r.overtime_minutes) : '—') },
+      { label: isAr ? 'إضافي' : 'Overtime', exportLabel: isAr ? 'إضافي (دقيقة)' : 'Overtime (minutes)', value: (r) => r.overtime_minutes || 0, render: (r) => (r.overtime_minutes > 0 ? hoursText(r.overtime_minutes) : '—') },
     ];
 
     const teamFilter = availableTeams.length > 1 && select(
