@@ -78,10 +78,16 @@ const MESSAGES = {
 };
 
 export function codedError(code, detail) {
-  return Object.assign(new Error(detail || code), { code });
+  return Object.assign(new Error(detail || code), { code, detail });
 }
+
+// Refusals and server errors from the account service come with the reason ("no_token", "not_admin", ...), shown in
+// brackets so they can be traced; everything else is just the message for its code.
+const SHOW_DETAIL = new Set(['forbidden', 'server_error']);
 
 export function errorText(err) {
   const messages = MESSAGES[getLang()] || MESSAGES.en;
-  return messages[err?.code] || err?.message || messages.server_error;
+  const base = messages[err?.code];
+  if (!base) return err?.message || messages.server_error;
+  return err.detail && SHOW_DETAIL.has(err.code) ? `${base} [${err.detail}]` : base;
 }

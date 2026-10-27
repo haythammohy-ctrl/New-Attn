@@ -11,7 +11,6 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -24,21 +23,27 @@ function json(body: unknown) {
   return new Response(JSON.stringify(body), { status: 200, headers: { ...CORS, 'Content-Type': 'application/json' } });
 }
 
+// Bump this when the file changes: { action: 'ping' } answers with it, so you can tell which copy is deployed.
+const VERSION = '2026-10-28.1';
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
 
   try {
+    const body = await req.json().catch(() => ({}));
+    // No sign-in needed (the gateway still wants the project's public key): just says which version is running.
+    if (body?.action === 'ping') return json({ ok: true, version: VERSION });
+
+    // Every "forbidden" says why (shown in brackets in the app), so a refusal can be traced without guessing.
     const authHeader = req.headers.get('Authorization') || '';
     const token = authHeader.replace(/^Bearer\s+/i, '');
-    if (!token) return json({ error: 'forbidden' });
+    if (!token) return json({ error: 'forbidden', detail: 'no_token' });
 
-    // Who is calling, checked with their own token (not the service key).
-    const caller = createClient(SUPABASE_URL, ANON_KEY);
-    const { data: { user }, error: userErr } = await caller.auth.getUser(token);
-    if (userErr || !user) return json({ error: 'forbidden' });
+    const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
 
-    const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
-    const body = await req.json();
+    // Who is calling: the auth server checks the token they sent (the service key only asks; it does not act as them).
+    const { data: { user }, error: userErr } = await admin.auth.getUser(token);
+    if (userErr || !user) return json({ error: 'forbidden', detail: `token_rejected: ${userErr?.message || 'no user'}` });
 
     // Anyone signed in may set their OWN password this way (used right after a temporary password an
     // admin handed out). Scoped to the caller's own id only — no admin check, and no "id" from the body.
@@ -58,7 +63,8 @@ Deno.serve(async (req) => {
 
     // Everything past this point hands out or resets someone ELSE's password, so it's admin-only.
     const { data: callerProfile, error: profileError } = await admin.from('profiles').select('role, active').eq('id', user.id).maybeSingle();
-    if (profileError || callerProfile?.role !== 'admin' || !callerProfile.active) return json({ error: 'forbidden' });
+    if (profileError) return json({ error: 'forbidden', detail: `profile_lookup_failed: ${profileError.message}` });
+    if (callerProfile?.role !== 'admin' || !callerProfile.active) return json({ error: 'forbidden', detail: 'not_admin' });
 
     if (body.action === 'reset_password') {
       const { id, password } = body;
