@@ -1,6 +1,7 @@
 import { buildForm } from '../components/form.js';
 import { renderAdminCreateStaff, renderSignup } from '../components/signup.js';
 import { assignableRoles, can, roleLabel } from '../lib/access.js';
+import { chainOf } from '../lib/hierarchy.js';
 import { cleanNationalId, maskNationalId, validNationalId } from '../lib/registration.js';
 import { getLang, t } from '../lib/i18n.js';
 import { badge, btn, dataTable, h, modal, money, toast } from '../ui.js';
@@ -53,11 +54,13 @@ export default async function render({ api, profile, settings, perms, refresh })
   const managerName = (id) => people.find((x) => x.id === id)?.full_name || '—';
   const supervisors = people.filter((p) => p.role === 'supervisor' && p.active);
   const managersAbove = people.filter((p) => p.role === 'manager' && p.active);
-  // Employees report to a supervisor; an assistant manager reports to a manager (the team's assistant manager then
-  // shows on each supervisor's profile, see lib/hierarchy.js).
-  const reportsTo = (role) => (role === 'assistant_manager'
-    ? { label: isAr ? 'المدير المسؤول' : `${roleLabel('manager')} in charge`, candidates: managersAbove }
-    : { label: isAr ? 'المشرف المباشر' : 'Direct supervisor', candidates: supervisors });
+  // Employees report to a supervisor; an assistant manager reports to a manager. A supervisor reports to the assistant
+  // manager in charge of their team (set once per team on the Teams page, see lib/hierarchy.js), so supervisors,
+  // managers and admins get no "reports to" field here.
+  const reportsTo = (role) => {
+    if (role === 'assistant_manager') return { shown: true, label: isAr ? 'المدير المسؤول' : `${roleLabel('manager')} in charge`, candidates: managersAbove };
+    return { shown: role === 'employee', label: isAr ? 'المشرف المباشر' : 'Direct supervisor', candidates: supervisors };
+  };
   const reportsToOptions = (role, selfId) => [none, ...reportsTo(role).candidates.filter((c) => c.id !== selfId).map((c) => ({ value: c.id, label: c.full_name }))];
   const editable = (p) => canEditPeople && (isAdmin || p.role !== 'admin');
 
@@ -121,12 +124,32 @@ export default async function render({ api, profile, settings, perms, refresh })
       const team = people.find((x) => x.id === managerSelect.value)?.team_id;
       if (team) teamSelect.value = team;
     });
-    // Whom a person reports to follows their role: employee -> supervisor, assistant manager -> manager.
+    // Whom a person reports to follows their role: employee -> supervisor, assistant manager -> manager, and a
+    // supervisor's assistant manager is read-only because it comes from their team.
+    const managerField = form.nodes[4];
+    const assistantLine = h('b', {});
+    const assistantNote = h('div', { class: 'field' }, h('span', { class: 'label' }, roleLabel('assistant_manager')), assistantLine);
+    function refreshReporting() {
+      const role = roleSelect.value;
+      const info = reportsTo(role);
+      managerField.style.display = info.shown ? '' : 'none';
+      managerField.querySelector('.label').textContent = info.label;
+      assistantNote.style.display = role === 'supervisor' ? '' : 'none';
+      const assistant = teamSelect.value
+        ? chainOf({ role: 'supervisor', team_id: teamSelect.value, active: true }, people, teams).find((c) => c.relation === 'assistant_manager')
+        : null;
+      assistantLine.textContent = assistant ? assistant.full_name
+        : (teamSelect.value
+          ? (isAr ? 'لا يوجد مسؤول عن هذا الفريق. حدده من صفحة الفرق.' : 'Nobody is in charge of this team. Set one on the Teams page.')
+          : (isAr ? 'اختر فريقًا لمعرفة المسؤول عنه.' : 'Pick a team to see who is in charge of it.'));
+    }
     roleSelect.addEventListener('change', () => {
-      form.nodes[4].querySelector('.label').textContent = reportsTo(roleSelect.value).label;
       managerSelect.replaceChildren(...reportsToOptions(roleSelect.value, p.id).map((o) => h('option', { value: o.value }, o.label)));
       managerSelect.value = '';
+      refreshReporting();
     });
+    teamSelect.addEventListener('change', refreshReporting);
+    refreshReporting();
 
     const nidInput = h('input', { type: 'text', inputMode: 'numeric', maxLength: 14, dir: 'ltr', value: nidOf(p.id), disabled: !canEditNid });
     let dialog;
@@ -154,7 +177,7 @@ export default async function render({ api, profile, settings, perms, refresh })
 
     dialog = modal({
       title: p.full_name || p.email || p.employee_code,
-      body: h('div', {}, h('div', { class: 'grid' }, form.nodes), identity, ...salaryPart),
+      body: h('div', {}, h('div', { class: 'grid' }, form.nodes, assistantNote), identity, ...salaryPart),
       buttons: [
         {
           label: t('common.save'), kind: 'primary',
