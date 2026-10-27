@@ -459,3 +459,24 @@ test('the assistant manager can staff someone as a supervisor but not as a peer 
   throwsCode(() => change('emp1', { role: 'manager' }), 'role_forbidden');
   throwsCode(() => change('emp1', { role: 'admin' }), 'role_forbidden');
 });
+
+// ---- demo backend end-to-end: the read-only manager at the API surface -----------------
+// accessOf in lib/access.js downgrades manager access; this proves the demo API honours it.
+test('demo api: the manager reads profiles but any write is refused', async () => {
+  // Sign in as the demo manager (ماجد) — the suite may be signed in as someone else before this.
+  const { api } = await import('../js/api/local.js');
+  await api.signIn({ email: 'boss@demo.test', identifier: 'boss@demo.test' });
+  const me = await api.currentProfile();
+  eq(me?.role, 'manager', 'signed in as the manager:');
+
+  // Reading across every team is allowed...
+  const people = await api.list('profiles');
+  eq(people.length > 2, true, 'manager sees people:');
+
+  // ...but every write path is refused at the API, not only in the UI.
+  const target = people.find((p) => p.id !== me.id);
+  let refused = null;
+  try { await api.save('profiles', { id: target.id, phone: '010' }); }
+  catch (err) { refused = err.code || err.message; }
+  eq(typeof refused, 'string', 'write refused with a coded error:');
+});

@@ -545,10 +545,15 @@ alter table public.attendance_edits enable row level security;
 
 -- ---------------------------------------------------------------- permission helpers
 -- What the signed-in user may do with a feature. The admin always gets everything.
+-- The manager role is read-only by design: whatever the matrix says, its access is
+-- downgraded from *_edit to *_view here, so the database itself never lets a manager write.
 create or replace function public.my_access(p_feature text) returns text
 language sql stable security definer set search_path = public as $$
   select case
     when public.current_role_name() = 'admin' then 'all_edit'
+    when public.current_role_name() = 'manager'
+      then replace(coalesce((select rp.access from public.role_permissions rp
+                             where rp.role = 'manager' and rp.feature = p_feature), 'none'), '_edit', '_view')
     else coalesce((select rp.access from public.role_permissions rp
                    where rp.role = public.current_role_name() and rp.feature = p_feature), 'none')
   end

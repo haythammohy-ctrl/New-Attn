@@ -17,18 +17,22 @@ export default async function render({ api, refresh }) {
   const dropdowns = new Map();
   const featureByKey = new Map(FEATURES.map((f) => [f.key, f]));
 
+  // A manager reports only. Build the option list with that in mind for every feature kind:
+  // scoped (none/team_*/all_*), levels (none/all_view/all_edit), excuse (none/team_edit/all_edit),
+  // and allow (none/all_edit). Anything ending in _edit is out for this role.
+  const optionsFor = (feature, role) => (isReadOnlyRole(role)
+    ? feature.options.filter((value) => !value.endsWith('_edit'))
+    : feature.options);
+  const downgraded = (value, role) => (isReadOnlyRole(role) && value?.endsWith('_edit')
+    ? value.replace('_edit', '_view')
+    : value);
+
   const cell = (feature, role) => {
-    const current = working.get(keyOf(role, feature.key)) || 'none';
-    // A manager reports only: the role can be granted view levels, never edit ones.
-    const options = isReadOnlyRole(role)
-      ? feature.options.filter((value) => !value.endsWith('_edit') && value !== 'all_edit') 
-      : feature.options;
-    const shown = isReadOnlyRole(role) && !options.includes(current)
-      ? current.replace('_edit', '_view')
-      : current;
+    const options = optionsFor(feature, role);
+    const current = downgraded(working.get(keyOf(role, feature.key)) || 'none', role);
     const dd = select(
       options.map((value) => ({ value, label: optionLabel(feature, value) })),
-      shown,
+      options.includes(current) ? current : options[0],
     );
     dd.addEventListener('change', () => {
       working.set(keyOf(role, feature.key), dd.value);
@@ -47,6 +51,8 @@ export default async function render({ api, refresh }) {
       }
     }
     if (!changes.length) { toast(text('لا توجد تغييرات لحفظها.', 'There are no changes to save.')); return; }
+    // Belt and braces: a read-only role must never leave this screen with an edit level.
+    for (const c of changes) if (isReadOnlyRole(c.role) && c.access.endsWith('_edit')) c.access = c.access.replace('_edit', '_view');
     const risky = changes.filter((c) => featureByKey.get(c.feature)?.sensitive && c.access !== 'none');
     if (risky.length) {
       const lines = risky.map((c) => `${roleLabel(c.role)} ← ${featureByKey.get(c.feature).label}: ${optionLabel(featureByKey.get(c.feature), c.access)}`);
@@ -67,11 +73,12 @@ export default async function render({ api, refresh }) {
 
   function restoreDefaults() {
     for (const { role, feature, access } of defaultRows()) {
-      working.set(keyOf(role, feature), access);
+      const fixed = downgraded(access, role);
+      working.set(keyOf(role, feature), fixed);
       const dd = dropdowns.get(keyOf(role, feature));
       if (dd) {
-        dd.value = access;
-        dd.closest('td').classList.toggle('changed', access !== (saved.get(keyOf(role, feature)) || 'none'));
+        dd.value = fixed;
+        dd.closest('td').classList.toggle('changed', fixed !== (saved.get(keyOf(role, feature)) || 'none'));
       }
     }
     toast(text('استُعيدت القيم الافتراضية. اضغط «حفظ» لتطبيقها.', 'Default values restored. Select Save to apply them.'));
