@@ -71,15 +71,28 @@ export default async function render({ api, profile, settings, onCleanup, refres
     return getPosition();
   }
 
+  let isPunching = false;
   async function doPunch() {
-    const coords = await coordsNow();
-    if (mode === 'out') await api.checkOut(coords);
-    else await api.checkIn({ ...coords, shiftId: selectedId });
-    toast(mode === 'out' ? (isAr ? 'تم تسجيل الانصراف بنجاح' : 'Clock out recorded successfully') : (isAr ? 'تم تسجيل الحضور بنجاح' : 'Clock in recorded successfully'));
-    if (mode !== 'out' && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
-      try { Notification.requestPermission(); } catch {}
+    if (isPunching) return;
+    try {
+      isPunching = true;
+      punch.disabled = true;
+      const coords = await coordsNow();
+      if (coords.isMocked) {
+        toast(isAr ? 'اكتُشف موقع جغرافي وهمي؛ لا يمكن تسجيل الحضور.' : 'A mock GPS location was detected. Clock-in is unavailable.', 'err');
+        return;
+      }
+      if (mode === 'out') await api.checkOut(coords);
+      else await api.checkIn({ ...coords, shiftId: selectedId });
+      toast(mode === 'out' ? (isAr ? 'تم تسجيل الانصراف بنجاح' : 'Clock out recorded successfully') : (isAr ? 'تم تسجيل الحضور بنجاح' : 'Clock in recorded successfully'));
+      if (mode !== 'out' && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+        try { Notification.requestPermission(); } catch {}
+      }
+      refresh();
+    } finally {
+      isPunching = false;
+      paintPunch();
     }
-    refresh();
   }
 
   let locateSeq = 0;
@@ -100,6 +113,7 @@ export default async function render({ api, profile, settings, onCleanup, refres
       if (fix.isMocked) {
         gps.className = 'gps far';
         gps.textContent = isAr ? 'اكتُشف موقع جغرافي وهمي؛ لا يمكن تسجيل الحضور.' : 'A mock GPS location was detected. Clock-in is unavailable.';
+        punch.disabled = true;
         return;
       }
 
@@ -108,6 +122,7 @@ export default async function render({ api, profile, settings, onCleanup, refres
         gps.textContent = isAr
           ? `هامش خطأ الموقع أكبر من المسموح (${acc} م؛ الحد الأقصى ${settings.max_accuracy_m} م). انتقل إلى مكان مفتوح وحاول مجددًا.`
           : `GPS accuracy is too low (${acc} m; maximum ${settings.max_accuracy_m} m). Move to an open area and try again.`;
+        punch.disabled = true;
         return;
       }
 
@@ -115,12 +130,14 @@ export default async function render({ api, profile, settings, onCleanup, refres
       gps.textContent = inside
         ? (isAr ? `أنت ضمن نطاق فرع ${location.name} (المسافة ${meters} م${accText})` : `You are within the geofence for ${location.name} (${meters} m away${accText})`)
         : (isAr ? `أنت على بُعد ${meters} م من فرع ${location.name} (الحد الأقصى ${location.radius_m} م${accText})` : `You are ${meters} m from ${location.name} (maximum ${location.radius_m} m${accText})`);
+      if (!inside) punch.disabled = true;
     } catch (err) {
       if (mine !== locateSeq) return;
       gps.className = 'gps far';
       gps.textContent = err.code === 'gps_denied'
         ? (isAr ? 'يرجى السماح للمتصفح بالوصول إلى موقعك.' : 'Allow location access in your browser.')
         : (isAr ? 'تعذّر تحديد موقعك. تأكد من تفعيل خدمات الموقع.' : 'Unable to get your location. Make sure location services are enabled.');
+      punch.disabled = true;
     }
   }
 
@@ -197,8 +214,12 @@ export default async function render({ api, profile, settings, onCleanup, refres
           onClick: async () => {
             const reason = noteInput.value.trim();
             if (!reason) throw new Error(isAr ? 'يرجى توضيح سبب طلب تسجيل الانصراف.' : 'Please provide a reason for the clock-out request.');
-            const noteText = `${isAr ? 'طلب تسجيل الانصراف' : 'Missed clock-out request'} (${timeInput.value}): ${reason}`;
-            await api.save('attendance', { ...att, note: noteText });
+            if (api.requestCheckoutCorrection) {
+              await api.requestCheckoutCorrection({ id: att.id, outTime: timeInput.value, reason });
+            } else {
+              const noteText = `${isAr ? 'طلب تسجيل الانصراف' : 'Missed clock-out request'} (${timeInput.value}): ${reason}`;
+              await api.save('attendance', { ...att, note: noteText });
+            }
             toast(isAr ? 'أُرسل الطلب إلى المشرف للمراجعة والاعتماد.' : 'The request was sent to your supervisor for review and approval.');
             refresh();
           },

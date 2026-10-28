@@ -162,6 +162,8 @@ export default async function render({ api, profile, settings, perms }) {
           { label: text('مكافآت', 'Bonuses'), class: 'num', value: (p) => Number(p.bonuses), render: (p) => money(p.bonuses) },
           { label: text('خصم غياب', 'Absence Deduction'), class: 'num', value: (p) => Number(p.absence_deduction), render: (p) => money(p.absence_deduction) },
           { label: text('خصم تأخير', 'Late Deduction'), class: 'num', value: (p) => Number(p.late_deduction), render: (p) => money(p.late_deduction) },
+          { label: text('تأمينات', 'Social Insurance'), class: 'num', value: (p) => Number(p.insurance_deduction || p.details?.insurance_deduction || 0), render: (p) => money(p.insurance_deduction || p.details?.insurance_deduction || 0) },
+          { label: text('ضرائب', 'Taxes'), class: 'num', value: (p) => Number(p.tax_deduction || p.details?.tax_deduction || 0), render: (p) => money(p.tax_deduction || p.details?.tax_deduction || 0) },
           { label: text('خصومات', 'Deductions'), class: 'num', value: (p) => Number(p.other_deductions), render: (p) => money(p.other_deductions) },
           { label: text('سلف', 'Advances'), class: 'num', value: (p) => Number(p.advances), render: (p) => money(p.advances) },
           { label: text('الصافي', 'Net Pay'), class: 'num', value: (p) => Number(p.net), render: (p) => h('b', {}, money(p.net), p.details?.negative_net && badge(text('سالب', 'Negative'), 'err')) },

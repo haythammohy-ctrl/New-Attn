@@ -240,6 +240,17 @@ export const api = {
     return target.employee_code;
   },
 
+  async requestCheckoutCorrection({ id, outTime, reason }) {
+    const user = me();
+    if (!user) throw codedError('forbidden');
+    const target = db.attendance.find((a) => a.id === id);
+    if (!target || target.employee_id !== user.id) throw codedError('forbidden');
+    target.note = `طلب تسجيل الانصراف (${outTime}): ${reason.trim()}`;
+    target.verification_status = 'pending';
+    persist();
+    return clone(target);
+  },
+
   async signOut() {
     localStorage.removeItem(USER_KEY);
   },

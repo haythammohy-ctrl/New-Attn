@@ -10,8 +10,9 @@ export default async function render({ api, profile, settings, perms }) {
   const monthStart = `${today.slice(0, 7)}-01`;
 
   const isAdmin = profile.role === 'admin';
-  const isManager = profile.role === 'assistant_manager';
-  const isSupervisor = profile.role === 'supervisor' || profile.role === 'manager';
+  const isGeneralManager = profile.role === 'manager';
+  const isManager = profile.role === 'assistant_manager' || isGeneralManager;
+  const isSupervisor = profile.role === 'supervisor';
   const isEmployee = profile.role === 'employee';
 
   const [allProfiles, allAttendanceToday, allShifts, activeLeaves, pendingLeaves, monthAttendance, allTeams] = await Promise.all([

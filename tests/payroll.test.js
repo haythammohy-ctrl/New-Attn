@@ -203,36 +203,36 @@ test('pending attendance is excluded from presence and absence deductions', () =
       status: 'present', verification_status: 'pending',
     }],
   });
-
-  test('rejected attendance is not counted as presence', () => {
-    const p = run({
-      today: '2026-09-01',
-      attendance: [{
-        work_date: '2026-09-01', check_in_at: '2026-09-01T06:00:00Z',
-        status: 'present', verification_status: 'rejected',
-      }],
-    });
-
-    test('absence leave on a scheduled rest day does not create a deduction', () => {
-      const p = run({
-        today: '2026-09-04',
-        attendance: [],
-        leaves: [{
-          status: 'approved', leave_type_id: 'absence', from_date: '2026-09-04', to_date: '2026-09-04',
-        }],
-        leaveTypes: [...leaveTypes, { id: 'absence', kind: 'absence', paid: false }],
-      });
-      eq(p.details.days.absent, 3);
-      eq(p.absence_deduction, 300);
-    });
-    eq(p.details.days.present, 0);
-    eq(p.details.days.absent, 1);
-    eq(p.absence_deduction, 100);
-  });
   eq(p.details.days.pendingReview, 1);
   eq(p.details.days.present, 0);
   eq(p.details.days.absent, 0);
   eq(p.absence_deduction, 0);
+});
+
+test('rejected attendance is not counted as presence', () => {
+  const p = run({
+    today: '2026-09-01',
+    attendance: [{
+      work_date: '2026-09-01', check_in_at: '2026-09-01T06:00:00Z',
+      status: 'present', verification_status: 'rejected',
+    }],
+  });
+  eq(p.details.days.present, 0);
+  eq(p.details.days.absent, 1);
+  eq(p.absence_deduction, 100);
+});
+
+test('absence leave on a scheduled rest day does not create a deduction', () => {
+  const p = run({
+    today: '2026-09-04',
+    attendance: [],
+    leaves: [{
+      status: 'approved', leave_type_id: 'absence', from_date: '2026-09-04', to_date: '2026-09-04',
+    }],
+    leaveTypes: [...leaveTypes, { id: 'absence', kind: 'absence', paid: false }],
+  });
+  eq(p.details.days.absent, 3);
+  eq(p.absence_deduction, 300);
 });
 
 test('proration: mid-month hire gets prorated base and allowances when enabled', () => {

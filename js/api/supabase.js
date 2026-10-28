@@ -63,6 +63,14 @@ export const api = {
     return data;
   },
 
+  async requestCheckoutCorrection({ id, outTime, reason }) {
+    const { data, error } = await sb.rpc('request_checkout_correction', {
+      p_attendance_id: id, p_out_time: outTime, p_reason: reason,
+    });
+    fail(error);
+    return data;
+  },
+
   // `identifier` is an email, a 14-digit national id for an employee, or a full name for staff
   async signIn({ identifier, email, password }) {
     const raw = (identifier ?? email ?? '').trim();

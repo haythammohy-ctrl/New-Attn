@@ -342,12 +342,17 @@ create table public.payslips (
   bonuses numeric not null default 0,
   absence_deduction numeric not null default 0,
   late_deduction numeric not null default 0,
+  insurance_deduction numeric not null default 0,
+  tax_deduction numeric not null default 0,
   other_deductions numeric not null default 0,
   advances numeric not null default 0,
   net numeric not null default 0,
   details jsonb not null default '{}',
   unique (run_id, employee_id)
 );
+
+alter table public.payslips add column if not exists insurance_deduction numeric not null default 0;
+alter table public.payslips add column if not exists tax_deduction numeric not null default 0;
 
 -- Once a month is approved it is locked: no edits, no deletes, no going back to draft.
 create function public.guard_payslips() returns trigger
@@ -764,6 +769,31 @@ end $$;
 
 revoke execute on function public.verify_attendance(uuid, text, text) from public, anon;
 grant execute on function public.verify_attendance(uuid, text, text) to authenticated;
+
+-- An employee who missed clock-out requests a correction with their actual out time and reason.
+create or replace function public.request_checkout_correction(p_attendance_id uuid, p_out_time text, p_reason text)
+returns public.attendance
+language plpgsql security definer set search_path = public as $$
+declare
+  rec public.attendance;
+begin
+  select * into rec from public.attendance where id = p_attendance_id and employee_id = auth.uid() for update;
+  if rec.id is null then raise exception 'forbidden'; end if;
+  if rec.check_out_at is not null then raise exception 'already_checked_out'; end if;
+  if coalesce(btrim(p_reason), '') = '' then raise exception 'reason_required'; end if;
+
+  perform set_config('app.attendance_verification', '1', true);
+  update public.attendance
+  set note = 'طلب تسجيل الانصراف (' || coalesce(p_out_time, '') || '): ' || btrim(p_reason),
+      verification_status = 'pending',
+      edited_by = auth.uid()
+  where id = rec.id
+  returning * into rec;
+  return rec;
+end $$;
+
+revoke execute on function public.request_checkout_correction(uuid, text, text) from public, anon;
+grant execute on function public.request_checkout_correction(uuid, text, text) to authenticated;
 
 drop trigger if exists attendance_guard on public.attendance;
 create trigger attendance_guard

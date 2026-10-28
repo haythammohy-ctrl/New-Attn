@@ -26,7 +26,7 @@ function getRoutes() {
     { path: 'records', label: t('nav.records'), show: (p) => can(p, 'attendance'), page: () => import('./pages/records.js') },
     { path: 'employees', label: t('nav.employees'), show: (p) => can(p, 'employees'), page: () => import('./pages/employees.js') },
     { path: 'teams', label: t('nav.teams'), show: (p) => p.role === 'admin', page: () => import('./pages/teams.js') },
-    { path: 'payroll', label: t('nav.payroll'), show: (p) => (p.role === 'admin' || p.role === 'assistant_manager') && can(p, 'payroll'), page: () => import('./pages/payroll.js') },
+    { path: 'payroll', label: t('nav.payroll'), show: (p) => can(p, 'payroll'), page: () => import('./pages/payroll.js') },
     { path: 'setup', label: t('nav.setup'), show: (p) => can(p, 'setup') || can(p, 'rules') || can(p, 'backup'), page: () => import('./pages/setup.js') },
     { path: 'permissions', label: t('nav.permissions'), show: (p) => p.role === 'admin', page: () => import('./pages/permissions.js') },
     { path: 'me', label: t('nav.me'), page: () => import('./pages/me.js') },

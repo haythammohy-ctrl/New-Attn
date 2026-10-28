@@ -1,8 +1,8 @@
 import { can, scopeOf, teamsOf } from '../lib/access.js';
 import { errorText } from '../api/errors.js';
-import { formatTime, todayIn, zonedTimeToISO } from '../lib/dates.js';
+import { addDays, formatTime, todayIn, zonedTimeToISO } from '../lib/dates.js';
 import { countLeaveDays } from '../lib/rules.js';
-import { checkoutMinutesAt, lateMinutesAt, shiftInstance } from '../lib/shifts.js';
+import { checkoutMinutesAt, isOvernight, lateMinutesAt, shiftInstance } from '../lib/shifts.js';
 import { getLang, t } from '../lib/i18n.js';
 import { badge, btn, confirmBox, dataTable, fmtDate, h, modal, toast } from '../ui.js';
 
@@ -10,8 +10,9 @@ export default async function render({ api, profile, settings, perms, refresh })
   const isAr = getLang() === 'ar';
   const tz = settings?.timezone || 'Africa/Cairo';
   const isAdmin = profile.role === 'admin';
-  const isManager = profile.role === 'assistant_manager';
-  const isSupervisor = profile.role === 'supervisor' || profile.role === 'manager';
+  const isGeneralManager = profile.role === 'manager';
+  const isManager = profile.role === 'assistant_manager' || isGeneralManager;
+  const isSupervisor = profile.role === 'supervisor';
   const isEmployee = profile.role === 'employee';
 
   const [leaveRequests, allAttendance, edits, people, types, shifts, holidays, teams] = await Promise.all([
@@ -39,7 +40,7 @@ export default async function render({ api, profile, settings, perms, refresh })
     return profile.role === 'assistant_manager' || emp.role !== 'supervisor';   // co-supervisors are peers, not reports
   };
   const isAccessible = (empId) => {
-    if (isAdmin || empId === profile.id) return true;
+    if (isAdmin || isGeneralManager || empId === profile.id) return true;
     const feature = can(perms, 'attendance') ? 'attendance' : 'leave_approvals';
     return scopeOf(perms, feature) === 'all' || inTeamScope(empId);
   };
@@ -126,14 +127,23 @@ export default async function render({ api, profile, settings, perms, refresh })
             const date = dateInput.value;
             const shift = (shifts || []).find((s) => s.id === shSelect.value) || shifts[0];
             const checkIn = inInput.value ? zonedTimeToISO(date, inInput.value, tz) : null;
-            const checkOut = outInput.value ? zonedTimeToISO(date, outInput.value, tz) : null;
+            let checkOut = null;
+            if (outInput.value) {
+              const sameDay = zonedTimeToISO(date, outInput.value, tz);
+              checkOut = (checkIn && sameDay < checkIn) ? zonedTimeToISO(addDays(date, 1), outInput.value, tz) : sameDay;
+            }
 
             let lateMin = 0;
             let earlyMin = 0;
-            if (shift && checkIn && checkOut) {
-              const inst = shiftInstance(shift, date, tz);
-              lateMin = lateMinutesAt(checkIn, inst);
-              earlyMin = checkoutMinutesAt(checkOut, inst);
+            let otMin = 0;
+            if (shift) {
+              const inst = shiftInstance(date, shift, tz);
+              if (checkIn) lateMin = lateMinutesAt(inst, Date.parse(checkIn));
+              if (checkOut) {
+                const co = checkoutMinutesAt(inst, Date.parse(checkOut), settings?.overtime_threshold_min ?? 30);
+                earlyMin = co.early_leave_minutes;
+                otMin = co.overtime_minutes;
+              }
             }
 
             const payload = {
@@ -146,6 +156,7 @@ export default async function render({ api, profile, settings, perms, refresh })
               check_out_at: checkOut,
               late_minutes: lateMin,
               early_leave_minutes: earlyMin,
+              overtime_minutes: otMin,
               edited_by: profile.id,
               note: reason,
             };
